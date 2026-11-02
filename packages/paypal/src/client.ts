@@ -1,6 +1,7 @@
 import type {
   AuthorizeOrderRequest,
   AuthorizeOrderResponse,
+  AuthorizationDetailsResponse,
   CapturePaymentResponse,
   OAuthTokenResponse,
   OrderDetailsResponse,
@@ -417,6 +418,38 @@ export class PayPalClient {
       id: authId,
       status: 'VOIDED',
     };
+  }
+
+  /**
+   * Retrieves authorization details directly from PayPal: GET /v2/payments/authorizations/{authorization_id}
+   */
+  async getAuthorization(authId: string): Promise<AuthorizationDetailsResponse> {
+    if (this.config.mockMode) {
+      return {
+        id: authId,
+        status: 'CREATED',
+        amount: {
+          currency_code: 'USD',
+          value: '45.00',
+        },
+      };
+    }
+
+    const token = await this.getAccessToken();
+    const response = await fetch(`${this.baseUrl}/v2/payments/authorizations/${authId}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Failed to get authorization ${authId} (${response.status}): ${err}`);
+    }
+
+    return (await response.json()) as AuthorizationDetailsResponse;
   }
 
   /**

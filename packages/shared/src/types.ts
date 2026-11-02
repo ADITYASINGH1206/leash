@@ -37,6 +37,8 @@ export type LedgerEventKind =
   | 'PAYPAL_CAPTURED'
   | 'PAYPAL_VOIDED'
   | 'PAYPAL_REFUNDED'
+  | 'PAYPAL_RECONCILED'
+  | 'RECONCILIATION_DISCREPANCY'
   | 'WEBHOOK_RECEIVED'
   | (string & {});
 

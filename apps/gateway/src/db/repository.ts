@@ -7,7 +7,7 @@ import {
   type MandateRow,
 } from './schema.js';
 import { LedgerService, type LedgerRow, computeLedgerHash, GENESIS_HASH } from '@leash/shared';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, lte } from 'drizzle-orm';
 import { logger } from '@leash/shared';
 
 // Global shared ledger service instance (tracks ledger state in test/dev mode)
@@ -221,5 +221,46 @@ export class GatewayRepository {
     }
 
     return inMemoryMandates.get(id) || null;
+  }
+
+  /**
+   * Retrieves all transactions (optionally filtered by status or creation age)
+   */
+  static async listTransactions(filter?: {
+    status?: string;
+    olderThan?: Date;
+  }): Promise<TransactionRow[]> {
+    const db = getDb();
+    if (db) {
+      try {
+        let query = db.select().from(transactionsTable);
+        const conditions = [];
+        if (filter?.status) {
+          conditions.push(eq(transactionsTable.status, filter.status));
+        }
+        if (filter?.olderThan) {
+          conditions.push(lte(transactionsTable.createdAt, filter.olderThan));
+        }
+        if (conditions.length > 0) {
+          query = query.where(and(...conditions)) as typeof query;
+        }
+        return await query.orderBy(desc(transactionsTable.createdAt));
+      } catch (err) {
+        logger.error('Database listTransactions failed', { error: String(err) });
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error('Database unavailable for listTransactions in production');
+        }
+      }
+    } else if (process.env.NODE_ENV === 'production') {
+      throw new Error('Database unavailable for listTransactions in production');
+    }
+
+    // In-memory fallback for test/dev
+    const list = Array.from(inMemoryTransactions.values());
+    return list.filter((t) => {
+      if (filter?.status && t.status !== filter.status) return false;
+      if (filter?.olderThan && t.createdAt > filter.olderThan) return false;
+      return true;
+    });
   }
 }

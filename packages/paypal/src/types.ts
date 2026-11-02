@@ -150,6 +150,18 @@ export interface VoidPaymentResponse {
   status: 'VOIDED';
 }
 
+export interface AuthorizationDetailsResponse {
+  id: string;
+  status: 'CREATED' | 'CAPTURED' | 'DENIED' | 'EXPIRED' | 'VOIDED' | 'PENDING';
+  amount: {
+    currency_code: string;
+    value: string;
+  };
+  create_time?: string;
+  update_time?: string;
+  expiration_time?: string;
+}
+
 export interface RefundPaymentResponse {
   id: string;
   status: 'COMPLETED' | 'PENDING' | 'CANCELLED';
