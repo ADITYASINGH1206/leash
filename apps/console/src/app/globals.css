@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import 'ag-grid-community/styles/ag-grid.css';
+@import 'ag-grid-community/styles/ag-theme-quartz.css';
+
+:root {
+  --background: #08090d;
+  --surface: #0c0e13;
+  --surface-elevated: #13161f;
+  --foreground: #fafafa;
+  --muted: #9f9fa9;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --emerald-light: #00c758;
+  --emerald: #00a544;
+  --emerald-dark: #016630;
+
+  --saffron-light: #fe6e00;
+  --saffron: #f05100;
+  --saffron-dark: #9f2d00;
+
+  --tech-blue: #3080ff;
+  --tech-blue-dark: #155dfc;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  min-height: 100vh;
+}
+
+/* Blueprint Dot & Grid Background Pattern */
+.blueprint-grid {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Technical Glows & Accents */
+.glow-emerald {
+  box-shadow: 0 0 20px -3px rgba(0, 199, 88, 0.25);
+}
+
+.glow-saffron {
+  box-shadow: 0 0 20px -3px rgba(254, 110, 0, 0.25);
+}
+
+.glow-blue {
+  box-shadow: 0 0 20px -3px rgba(48, 128, 255, 0.25);
+}
+
+/* Custom Scrollbar for Hacker-Grade Consoles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #08090d;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* AG Grid Dark Theme Customization matching Leash Blueprint */
+.ag-theme-quartz-dark {
+  --ag-background-color: #0c0e13 !important;
+  --ag-foreground-color: #fafafa !important;
+  --ag-header-background-color: #08090d !important;
+  --ag-header-foreground-color: #9f9fa9 !important;
+  --ag-header-cell-hover-background-color: #13161f !important;
+  --ag-header-cell-moving-background-color: #13161f !important;
+  --ag-border-color: rgba(255, 255, 255, 0.08) !important;
+  --ag-row-border-color: rgba(255, 255, 255, 0.06) !important;
+  --ag-odd-row-background-color: #0c0e13 !important;
+  --ag-row-hover-color: rgba(48, 128, 255, 0.08) !important;
+  --ag-selected-row-background-color: rgba(0, 199, 88, 0.12) !important;
+  --ag-font-family: 'JetBrains Mono', 'Menlo', monospace !important;
+  --ag-font-size: 12px !important;
+  --ag-card-background: #0c0e13 !important;
+  --ag-popup-border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+.ag-theme-quartz-dark .ag-header-cell {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
