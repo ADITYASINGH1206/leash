@@ -1,6 +1,5 @@
 import Fastify from "fastify";
 import { randomUUID } from "node:crypto";
-import { config } from "./config.js";
 import { logger } from "@leash/shared";
 import { handleRequestPaymentTool, createMcpServer, paypalClient } from "./mcp/index.js";
 import { PaymentRequestSchema } from "@leash/mandates";
@@ -30,6 +29,35 @@ export async function createServer() {
   const app = Fastify({ logger: false });
   const mcpServer = createMcpServer();
 
+  // CORS: the console and approvals PWA run on a different origin than the
+  // gateway, so browsers need explicit permission to read responses.
+  // CORS_ORIGINS is a comma-separated allowlist ("*" allows any origin).
+  const allowedOrigins = (
+    process.env.CORS_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000"
+  )
+    .split(",")
+    .map((o) => o.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+  app.addHook("onRequest", async (req, reply) => {
+    const origin = req.headers.origin;
+    if (!origin) return;
+    const allowed =
+      allowedOrigins.includes("*") || allowedOrigins.includes(origin);
+    if (!allowed) return;
+    reply.header("Access-Control-Allow-Origin", origin);
+    reply.header("Vary", "Origin");
+    reply.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    reply.header("Access-Control-Allow-Headers", "Content-Type, Accept");
+    reply.header("Access-Control-Max-Age", "600");
+    if (req.method === "OPTIONS") {
+      reply.status(204).send();
+    }
+  });
+  app.options("/*", async (_req, reply) => {
+    reply.status(204);
+    return "";
+  });
+
   app.addHook("onClose", async () => {
     await jobRunner.stop();
     await mcpServer.close();
@@ -43,6 +71,8 @@ export async function createServer() {
       status: "ok",
       service: "leash-gateway",
       ledgerHeight: rows.length,
+      // "mock" means PayPal ids are generated locally (no sandbox credentials)
+      paypalMode: paypalClient.isMockMode() ? "mock" : "sandbox",
       timestamp: new Date().toISOString(),
     };
   });
@@ -89,7 +119,19 @@ export async function createServer() {
       id?: string;
       maxAmount: number;
       intentText?: string;
+      playback?: string;
       validUntil?: string;
+      constraints?: {
+        maxTotal?: string;
+        maxPerTxn?: string;
+        currency?: string;
+        categories?: string[];
+        itemTerms?: string[];
+      };
+      // Optional device signature over `signedMandate` (canonical JSON, ES256 / P-256 SPKI key)
+      signature?: string;
+      publicKey?: string;
+      signedMandate?: Record<string, unknown>;
     };
     if (!body || typeof body.maxAmount !== "number" || body.maxAmount <= 0) {
       reply.status(400);
@@ -97,18 +139,60 @@ export async function createServer() {
         error: "Invalid mandate payload: maxAmount must be a positive number",
       };
     }
+    if (body.id !== undefined && !/^mdt_[A-Za-z0-9_-]{3,64}$/.test(body.id)) {
+      reply.status(400);
+      return { error: "Mandate id must look like mdt_<letters, digits, _ or ->" };
+    }
+
+    // If the client signed the mandate, the signature must verify. A bad
+    // signature is rejected outright rather than silently stored as unsigned.
+    let signatureVerified = false;
+    if (body.signature || body.publicKey) {
+      if (!body.signature || !body.publicKey || !body.signedMandate) {
+        reply.status(400);
+        return {
+          error: "A signed mandate needs signature, publicKey and signedMandate together",
+        };
+      }
+      signatureVerified = await verifyStepUpSignature(
+        body.publicKey,
+        body.signature,
+        body.signedMandate,
+      );
+      if (!signatureVerified) {
+        reply.status(400);
+        return { error: "Mandate signature did not verify (Fail-Closed)" };
+      }
+    }
 
     const mandateId =
       body.id || `mdt_${Math.random().toString(36).substring(2, 10)}`;
     const validUntil = body.validUntil
       ? new Date(body.validUntil)
       : new Date(Date.now() + 7 * 86400000);
+    if (Number.isNaN(validUntil.getTime())) {
+      reply.status(400);
+      return { error: "validUntil must be an ISO-8601 date" };
+    }
+
+    const constraints = body.constraints
+      ? {
+          maxTotal: body.constraints.maxTotal ?? body.maxAmount.toFixed(2),
+          maxPerTxn: body.constraints.maxPerTxn ?? body.maxAmount.toFixed(2),
+          currency: body.constraints.currency ?? "USD",
+          categories: (body.constraints.categories ?? []).map(String),
+          itemTerms: (body.constraints.itemTerms ?? []).map(String),
+        }
+      : undefined;
 
     seedInMemoryMandate({
       id: mandateId,
       maxAmount: body.maxAmount,
       spentAmount: 0,
       validUntil,
+      intentText: body.intentText,
+      playback: body.playback,
+      constraints,
     });
 
     await GatewayRepository.appendLedgerEvent(
@@ -119,6 +203,9 @@ export async function createServer() {
         maxAmount: body.maxAmount,
         intentText: body.intentText || "Authorized spending mandate",
         validUntil: validUntil.toISOString(),
+        constraints,
+        signatureVerified,
+        publicKey: signatureVerified ? body.publicKey : undefined,
       },
     );
 
@@ -128,6 +215,7 @@ export async function createServer() {
       spentAmount: 0,
       status: "ACTIVE",
       validUntil: validUntil.toISOString(),
+      signatureVerified,
     };
   });
 
@@ -147,6 +235,18 @@ export async function createServer() {
       status: mandate.status,
       validUntil: mandate.validUntil.toISOString(),
     };
+  });
+
+  // REST API: Recent transactions (newest first) for the console's live feed
+  app.get("/api/v1/transactions", async (req) => {
+    const { limit } = req.query as { limit?: string };
+    const max = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const all = await GatewayRepository.listTransactions();
+    const sorted = [...all].sort(
+      (a, b) =>
+        new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime(),
+    );
+    return { count: all.length, transactions: sorted.slice(0, max) };
   });
 
   // REST API: Get All Held Transactions (for Approvals PWA)
@@ -215,19 +315,65 @@ export async function createServer() {
       return { error: `Transaction '${id}' not found` };
     }
 
-    // Cryptographic step-up signature verification (Invariant 4 & Fail-Closed Invariant 2)
-    if (body.action === "APPROVE" && body.signature && body.publicKey) {
-      const payloadToVerify = body.signedPayload ?? {
+    // Only payments that are actually waiting for a human can be decided by a
+    // human. Without this check a BLOCKED (e.g. prompt-injected) payment could
+    // be "approved" straight into a PayPal authorization.
+    if (tx.status !== "HELD") {
+      reply.status(409);
+      return {
+        error: `Transaction '${id}' is ${tx.status}; only HELD transactions accept APPROVE or DENY`,
+      };
+    }
+
+    // Step-up re-signing (Invariant 4 & Fail-Closed Invariant 2).
+    // The payload is rebuilt from the stored transaction, never taken from the
+    // client, so a signature always commits to the real amount and payee.
+    if (body.action === "APPROVE") {
+      if (!body.signature || !body.publicKey) {
+        reply.status(401);
+        return {
+          error:
+            "Approval requires a device signature (signature + publicKey). Fail-Closed: unsigned approvals are rejected.",
+        };
+      }
+      const expectedPayload = {
         transactionId: id,
         mandateId: tx.mandateId,
-        approvedAmount: String(tx.amount),
+        approvedAmount: Number(tx.amount).toFixed(2),
         currency: tx.currency,
         action: "APPROVE",
       };
+      // The device may add a nonce and timestamp to what it signs, but every
+      // field that decides where money goes must equal the stored transaction.
+      let payloadToVerify: Record<string, unknown> = expectedPayload;
+      if (body.signedPayload !== undefined) {
+        const sp = body.signedPayload as Record<string, unknown>;
+        const bindsToTx =
+          sp !== null &&
+          typeof sp === "object" &&
+          sp.transactionId === expectedPayload.transactionId &&
+          sp.mandateId === expectedPayload.mandateId &&
+          Number(sp.approvedAmount).toFixed(2) === expectedPayload.approvedAmount &&
+          sp.currency === expectedPayload.currency &&
+          sp.action === "APPROVE";
+        const ts = typeof sp?.timestamp === "string" ? Date.parse(sp.timestamp) : NaN;
+        const fresh =
+          sp?.timestamp === undefined ||
+          (Number.isFinite(ts) && Math.abs(Date.now() - ts) < 10 * 60 * 1000);
+        if (!bindsToTx || !fresh) {
+          reply.status(400);
+          return {
+            error: !bindsToTx
+              ? "Signed payload does not match the held transaction (amount, currency or mandate differ). Fail-Closed: rejection required."
+              : "Signed approval is older than 10 minutes. Fail-Closed: sign again.",
+          };
+        }
+        payloadToVerify = sp;
+      }
       const validSig = await verifyStepUpSignature(
         body.publicKey,
         body.signature,
-        payloadToVerify
+        payloadToVerify,
       );
       if (!validSig) {
         reply.status(400);
@@ -280,8 +426,10 @@ export async function createServer() {
           });
 
           orderId = paypalOrder.id;
-          authId =
-            paypalOrder.authorizationId || `auth_${randomUUID().substring(0, 8)}`;
+          if (!paypalOrder.authorizationId) {
+            throw new Error(`Order ${paypalOrder.id} returned no authorization id`);
+          }
+          authId = paypalOrder.authorizationId;
 
           await GatewayRepository.appendLedgerEvent(
             LEDGER_EVENT_KINDS.PAYPAL_AUTH_HELD,
@@ -296,10 +444,18 @@ export async function createServer() {
             }
           );
         } catch (err) {
+          // Fail closed: never record an authorization PayPal did not issue.
+          // The payment stays HELD so the user can retry the approval.
           logger.warn("PayPal authorization order creation during step-up approval failed", {
             error: String(err),
           });
-          authId = `auth_stepup_${randomUUID().substring(0, 8)}`;
+          reply.status(502);
+          return {
+            id: tx.id,
+            status: "HELD",
+            error:
+              "PayPal did not return an authorization. The payment is still held; retry the approval.",
+          };
         }
       }
     } else if (body.action === "DENY" && tx.mandateId) {
@@ -625,13 +781,3 @@ export {
   getInMemoryMandate,
   type InMemoryMandateRecord,
 } from "./db/budget-mutex.js";
-if (process.env.NODE_ENV !== "test") {
-  const app = await createServer();
-  app.listen({ port: config.port, host: "0.0.0.0" }, (err, address) => {
-    if (err) {
-      logger.error("Gateway startup error", { error: String(err) });
-      process.exit(1);
-    }
-    logger.info(`Leash Gateway running on ${address}`);
-  });
-}

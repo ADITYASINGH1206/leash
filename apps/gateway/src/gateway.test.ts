@@ -1,3 +1,4 @@
+import { canonicalizeJson } from "@leash/mandates";
 import { describe, it, expect, beforeEach } from "vitest";
 import { createServer } from "./index.js";
 import { handleRequestPaymentTool } from "./mcp/index.js";
@@ -393,13 +394,32 @@ describe("Leash Gateway API & Budget Mutex Rails", () => {
       holdReason: "New merchant step-up required",
     });
 
-    // Human approves transaction
+    // Unsigned approvals are rejected (fail closed)
+    const unsignedRes = await server.inject({
+      method: "POST",
+      url: `/api/v1/transactions/${txId}/action`,
+      payload: {
+        action: "APPROVE",
+        reason: "Confirmed by phone push approval",
+      },
+    });
+    expect(unsignedRes.statusCode).toBe(401);
+    expect((await GatewayRepository.getTransaction(txId))?.status).toBe("HELD");
+
+    // Human approves transaction with a device signature
     const approveRes = await server.inject({
       method: "POST",
       url: `/api/v1/transactions/${txId}/action`,
       payload: {
         action: "APPROVE",
         reason: "Confirmed by phone push approval",
+        ...(await signApproval({
+          transactionId: txId,
+          mandateId: "mdt_gateway_test",
+          approvedAmount: "49.99",
+          currency: "USD",
+          action: "APPROVE",
+        })),
       },
     });
 
@@ -612,4 +632,147 @@ describe("Leash Gateway API & Budget Mutex Rails", () => {
     expect(tx?.status).toBe("BLOCKED");
     expect(tx?.verdict).toBe("BLOCK");
   });
+
+  it("refuses to approve a transaction that is not HELD (e.g. a BLOCKED injection)", async () => {
+    const server = await createServer();
+    const txId = "tx_blocked_cannot_approve";
+    await GatewayRepository.saveTransaction({
+      id: txId,
+      mandateId: "mdt_gateway_test",
+      merchantId: "mer_gadgethub",
+      amount: "100.00",
+      currency: "USD",
+      verdict: "BLOCK",
+      status: "BLOCKED",
+      holdReason: "Prompt injection matched cart item",
+    });
+
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/v1/transactions/${txId}/action`,
+      payload: {
+        action: "APPROVE",
+        ...(await signApproval({
+          transactionId: txId,
+          mandateId: "mdt_gateway_test",
+          approvedAmount: "100.00",
+          currency: "USD",
+          action: "APPROVE",
+        })),
+      },
+    });
+    expect(res.statusCode).toBe(409);
+    expect((await GatewayRepository.getTransaction(txId))?.status).toBe("BLOCKED");
+  });
+
+  it("rejects a self-consistent signature over a payload that differs from the held transaction", async () => {
+    const server = await createServer();
+    const txId = "tx_attacker_signed_other_amount";
+    await GatewayRepository.saveTransaction({
+      id: txId,
+      mandateId: "mdt_gateway_test",
+      merchantId: "mer_gadgethub",
+      amount: "45.00",
+      currency: "USD",
+      verdict: "HOLD",
+      status: "HELD",
+    });
+
+    // Signature is valid for its own payload, but that payload is not the held tx
+    const forged = await signApproval({
+      transactionId: txId,
+      mandateId: "mdt_gateway_test",
+      approvedAmount: "1.00",
+      currency: "USD",
+      action: "APPROVE",
+    });
+    const res = await server.inject({
+      method: "POST",
+      url: `/api/v1/transactions/${txId}/action`,
+      payload: { action: "APPROVE", ...forged },
+    });
+    expect(res.statusCode).toBe(400);
+
+    // Same forged signature without signedPayload: verified against the real tx, still rejected
+    const { signedPayload: _omit, ...withoutPayload } = forged;
+    const res2 = await server.inject({
+      method: "POST",
+      url: `/api/v1/transactions/${txId}/action`,
+      payload: { action: "APPROVE", ...withoutPayload },
+    });
+    expect(res2.statusCode).toBe(400);
+    expect((await GatewayRepository.getTransaction(txId))?.status).toBe("HELD");
+  });
+
+  it("verifies optional mandate signatures and rejects bad ones", async () => {
+    const server = await createServer();
+    const signedMandate = { id: "mdt_signed_ok", maxAmount: 20, intentText: "Phone case under $20" };
+    const good = await signApproval(signedMandate as unknown as Record<string, unknown>);
+    const ok = await server.inject({
+      method: "POST",
+      url: "/api/v1/mandates",
+      payload: {
+        id: "mdt_signed_ok",
+        maxAmount: 20,
+        intentText: "Phone case under $20",
+        constraints: { categories: ["phone_accessories"] },
+        signature: good.signature,
+        publicKey: good.publicKey,
+        signedMandate,
+      },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().signatureVerified).toBe(true);
+
+    const bad = await server.inject({
+      method: "POST",
+      url: "/api/v1/mandates",
+      payload: {
+        id: "mdt_signed_bad",
+        maxAmount: 20,
+        signature: good.signature,
+        publicKey: good.publicKey,
+        signedMandate: { ...signedMandate, maxAmount: 2000 },
+      },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it("answers CORS preflight for allowed console origins only", async () => {
+    const server = await createServer();
+    const allowed = await server.inject({
+      method: "OPTIONS",
+      url: "/api/v1/ledger",
+      headers: { origin: "http://localhost:3000", "access-control-request-method": "GET" },
+    });
+    expect(allowed.statusCode).toBe(204);
+    expect(allowed.headers["access-control-allow-origin"]).toBe("http://localhost:3000");
+
+    const denied = await server.inject({
+      method: "GET",
+      url: "/health",
+      headers: { origin: "https://evil.example" },
+    });
+    expect(denied.headers["access-control-allow-origin"]).toBeUndefined();
+  });
 });
+
+/** Signs a payload the same way the approvals PWA does (P-256, canonical JSON). */
+async function signApproval(payload: Record<string, unknown>) {
+  const keyPair = await crypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["sign", "verify"],
+  );
+  const spki = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+  const sig = await crypto.subtle.sign(
+    { name: "ECDSA", hash: { name: "SHA-256" } },
+    keyPair.privateKey,
+    new TextEncoder().encode(canonicalizeJson(payload)),
+  );
+  return {
+    signature: Buffer.from(sig).toString("base64"),
+    publicKey: Buffer.from(spki).toString("base64"),
+    signedPayload: payload,
+  };
+}

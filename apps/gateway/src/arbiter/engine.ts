@@ -267,7 +267,7 @@ export class DecisionArbiter {
         ? options.hourLocal
         : process.env.VITEST || process.env.NODE_ENV === "test"
           ? 14
-          : new Date().getHours();
+          : hourInUserTimezone(new Date());
     const txnsLastHour = options.txnsLastHour ?? 1;
 
     const policyResult = this.policyEngine.evaluate({
@@ -756,5 +756,25 @@ export class DecisionArbiter {
       remainingBudget: budgetResult.remainingBudget,
       trace,
     };
+  }
+}
+
+/**
+ * Quiet hours are about the *user's* night, not the server's. Render runs in
+ * UTC, so `getHours()` would hold every purchase made in a US evening.
+ * LEASH_USER_TIMEZONE is an IANA zone (default America/Los_Angeles).
+ */
+export function hourInUserTimezone(now: Date): number {
+  const timeZone = process.env.LEASH_USER_TIMEZONE || "America/Los_Angeles";
+  try {
+    const hour = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "numeric",
+      hourCycle: "h23",
+    }).format(now);
+    const parsed = Number(hour);
+    return Number.isFinite(parsed) ? parsed : now.getUTCHours();
+  } catch {
+    return now.getUTCHours();
   }
 }

@@ -4,6 +4,7 @@ import { createServer } from "@leash/gateway";
 import { BuyerShopperAgent, createDefaultSession } from "@leash/buyer-agent";
 import { verifyLedgerChain, type LedgerRow, LEDGER_EVENT_KINDS } from "@leash/shared";
 import {
+  canonicalizeJson,
   generateMandateKeyPair,
   signMandatePayload,
   verifyMandatePayload,
@@ -191,13 +192,23 @@ describe("Leash Payment Firewall: End-to-End User & Agent Regression Suite (Issu
     const decisionId = heldResult.trace?.decisionId;
     expect(decisionId).toBeDefined();
 
-    // Human operator reviews step-up notification and issues approval
+    // Human operator reviews step-up notification and re-signs the held amount
+    const heldTx = (
+      await app.inject({ method: "GET", url: `/api/v1/transactions/${decisionId}` })
+    ).json();
     const approveRes = await app.inject({
       method: "POST",
       url: `/api/v1/transactions/${decisionId}/action`,
       payload: {
         action: "APPROVE",
         reason: "User confirmed coffee purchase exception via mobile PWA",
+        ...(await signStepUp({
+          transactionId: decisionId!,
+          mandateId: heldTx.mandateId,
+          approvedAmount: Number(heldTx.amount).toFixed(2),
+          currency: "USD",
+          action: "APPROVE",
+        })),
       },
     });
 
@@ -304,3 +315,22 @@ describe("Leash Payment Firewall: End-to-End User & Agent Regression Suite (Issu
     }
   });
 });
+
+async function signStepUp(payload: Record<string, unknown>) {
+  const keyPair = await crypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["sign", "verify"],
+  );
+  const spki = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+  const sig = await crypto.subtle.sign(
+    { name: "ECDSA", hash: { name: "SHA-256" } },
+    keyPair.privateKey,
+    new TextEncoder().encode(canonicalizeJson(payload)),
+  );
+  return {
+    signature: Buffer.from(sig).toString("base64"),
+    publicKey: Buffer.from(spki).toString("base64"),
+    signedPayload: payload,
+  };
+}

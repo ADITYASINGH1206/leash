@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { DecisionArbiter } from "./arbiter/index.js";
+import { hourInUserTimezone } from "./arbiter/engine.js";
 import { seedInMemoryMandate } from "./db/budget-mutex.js";
 import { GatewayRepository } from "./db/repository.js";
 import { verifyLedgerChain, LEDGER_EVENT_KINDS } from "@leash/shared";
@@ -409,5 +410,17 @@ describe("Layer 0-4 Decision Aggregator & Fail-Closed Arbiter (Issue #13)", () =
         r.refId === decision.decisionId,
     );
     expect(decisionVerdictEvent).toBeDefined();
+  });
+});
+
+describe("quiet-hours clock", () => {
+  it("uses the user's timezone, not the server's", () => {
+    const prev = process.env.LEASH_USER_TIMEZONE;
+    process.env.LEASH_USER_TIMEZONE = "America/Los_Angeles";
+    // 03:00 UTC is 19:00 or 20:00 the previous evening in Los Angeles
+    expect(hourInUserTimezone(new Date("2026-11-10T03:00:00Z"))).toBe(19);
+    process.env.LEASH_USER_TIMEZONE = "Asia/Kolkata";
+    expect(hourInUserTimezone(new Date("2026-11-10T03:00:00Z"))).toBe(8);
+    process.env.LEASH_USER_TIMEZONE = prev;
   });
 });

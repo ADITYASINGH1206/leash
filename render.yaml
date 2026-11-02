@@ -5,7 +5,7 @@ services:
     env: node
     plan: standard
     buildCommand: pnpm install --ignore-scripts && pnpm build
-    startCommand: node apps/gateway/dist/index.js
+    startCommand: node apps/gateway/dist/server.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -27,7 +27,10 @@ services:
         fromService:
           type: web
           name: leash-ml
-          property: host
+          property: hostport
+      # Public URL of the console, so browsers may call the gateway (CORS)
+      - key: CORS_ORIGINS
+        sync: false
 
   # Next.js 15 Console with AG Grid Immutable Ledger
   - type: web
@@ -39,11 +42,11 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Must be the gateway's PUBLIC https URL (e.g. https://leash-gateway.onrender.com).
+      # NEXT_PUBLIC_* values are inlined at build time and read by the browser,
+      # so Render's private service host cannot be used here.
       - key: NEXT_PUBLIC_GATEWAY_URL
-        fromService:
-          type: web
-          name: leash-gateway
-          property: host
+        sync: false
 
   # Autonomous Buyer Shopping Agent with Live Attack Mode
   - type: web
@@ -67,7 +70,7 @@ services:
     env: python
     plan: standard
     buildCommand: pip install -r services/ml/requirements.txt
-    startCommand: uvicorn services.ml.main:app --host 0.0.0.0 --port 8000
+    startCommand: uvicorn services.ml.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"

@@ -170,3 +170,51 @@ describe('Mobile Approvals PWA: Device Wallet & WebCrypto Step-Up Re-Signing (Is
     expect(isValid).toBe(false);
   });
 });
+
+import { buildDecisions, getSampleTransactions } from './lib/api';
+import { compileMandate } from './lib/mandate-compiler';
+import { answerQuestion } from './lib/ledger-answers';
+
+describe('Console data layer', () => {
+  it('recorded sample ledger is a valid chain from a real gateway run', async () => {
+    const result = await verifyLedgerChainBrowser(getFallbackLedgerFixture());
+    expect(result.valid).toBe(true);
+  });
+
+  it('joins ledger layer events and transactions into one decision per payment', () => {
+    const decisions = buildDecisions(getFallbackLedgerFixture(), getSampleTransactions());
+    expect(decisions).toHaveLength(3);
+    const blocked = decisions.find((d) => d.status === 'BLOCKED')!;
+    expect(blocked.amount).toBe('100.00');
+    expect(blocked.layers.provenance?.verdict).toBe('BLOCK');
+    expect(blocked.layers.policy?.verdict).toBe('BLOCK');
+    expect(decisions.some((d) => d.status === 'CAPTURED')).toBe(true);
+  });
+
+  it('compiles budget, per-purchase cap, duration and categories from plain words', () => {
+    const now = new Date('2026-11-03T00:00:00Z');
+    const a = compileMandate('Buy a USB-C phone case under $20 from any store this week', now);
+    expect(a.maxAmount).toBe(20);
+    expect(a.categories).toEqual(['phone_accessories']);
+    expect(a.days).toBe(7);
+
+    const b = compileMandate('Groceries and coffee, up to $60 total, at most $25 per order, for 3 days', now);
+    expect(b.maxAmount).toBe(60);
+    expect(b.maxPerTxn).toBe(25);
+    expect(b.days).toBe(3);
+    expect(b.categories).toContain('grocery');
+
+    const c = compileMandate('get me something nice', now);
+    expect(c.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('answers questions only from ledger entries', async () => {
+    const rows = getFallbackLedgerFixture();
+    const decisions = buildDecisions(rows, getSampleTransactions());
+    const blocked = await answerQuestion('What was blocked?', rows, decisions);
+    expect(blocked.text).toContain('$100.00');
+    expect(blocked.cites.length).toBe(1);
+    const trust = await answerQuestion('Can I trust this ledger?', rows, decisions);
+    expect(trust.text).toContain(`all ${rows.length} hashes`);
+  });
+});

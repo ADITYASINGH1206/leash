@@ -117,8 +117,14 @@ export async function handleRequestPaymentTool(
       });
 
       const orderId = paypalOrder.id;
-      const authorizationId =
-        paypalOrder.authorizationId || `auth_${randomUUID().substring(0, 8)}`;
+      // Never invent an authorization id: if PayPal did not return one, the
+      // catch block below holds the payment for the human (fail closed).
+      if (!paypalOrder.authorizationId) {
+        throw new Error(
+          `PayPal order ${orderId} returned status ${paypalOrder.status} without an authorization`,
+        );
+      }
+      const authorizationId = paypalOrder.authorizationId;
 
       await GatewayRepository.appendLedgerEvent(
         LEDGER_EVENT_KINDS.PAYPAL_AUTH_HELD,

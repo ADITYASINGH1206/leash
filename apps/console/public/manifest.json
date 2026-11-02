@@ -1,11 +1,11 @@
 {
-  "name": "Leash Approvals — Payment Firewall for AI Agents",
+  "name": "Leash Approvals",
   "short_name": "Leash Approvals",
-  "description": "Mobile Approvals PWA with WebCrypto Step-Up Re-Signing for Autonomous AI Agent Purchases",
+  "description": "Approve or deny payments your AI agents were not allowed to make on their own.",
   "start_url": "/approvals",
   "display": "standalone",
-  "background_color": "#09090b",
-  "theme_color": "#10b981",
+  "background_color": "#E8EBE3",
+  "theme_color": "#E8EBE3",
   "orientation": "portrait",
   "icons": [
     {
