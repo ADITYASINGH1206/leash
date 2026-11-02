@@ -18,6 +18,7 @@ import { PayPalClient } from "@leash/paypal";
 import { getInMemoryMandate, seedInMemoryMandate } from "../db/budget-mutex.js";
 import { GatewayRepository } from "../db/repository.js";
 import { DecisionArbiter, type ArbiterOptions } from "../arbiter/index.js";
+import { dispatchWebPushAlert } from "../push.js";
 
 export interface MCPPaymentResult {
   status: "AUTHORIZED" | "HELD" | "BLOCKED";
@@ -187,6 +188,20 @@ export async function handleRequestPaymentTool(
         },
       };
     }
+  }
+
+  if (decision.status === "HELD") {
+    dispatchWebPushAlert({
+      title: "Payment Approval Required (HELD)",
+      body: `Agent request for $${req.cart.total} at ${req.cart.merchantId} is held: ${decision.holdReason || "Step-up confirmation required"}`,
+      data: {
+        transactionId: decision.decisionId,
+        amount: req.cart.total,
+        merchantId: req.cart.merchantId,
+        reason: decision.holdReason,
+        url: `/approvals?id=${decision.decisionId}`,
+      },
+    });
   }
 
   return {

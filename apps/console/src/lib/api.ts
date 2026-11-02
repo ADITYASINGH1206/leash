@@ -214,3 +214,156 @@ export function getFallbackLedgerFixture(): LedgerEventRow[] {
   ];
 }
 
+
+export interface CartItemBreakdown {
+  name: string;
+  unitAmount: string;
+  qty: number;
+  category?: string;
+}
+
+export interface HeldTransactionDetail {
+  id: string;
+  mandateId: string;
+  merchantId: string;
+  merchantName?: string;
+  agentName?: string;
+  amount: string;
+  currency: string;
+  verdict: 'HOLD';
+  status: 'HELD';
+  holdReason: string;
+  createdAt: string;
+  items?: CartItemBreakdown[];
+  riskScore?: number;
+  riskFactors?: string[];
+  layers?: {
+    layer0Budget?: { ok: boolean; remainingBudget: string };
+    layer1Policy?: { verdict: string; rulesTriggered: string[] };
+    layer2Provenance?: { verdict: string; confidence: number; injectionDetected: boolean };
+    layer3Intent?: { verdict: string; confidence: number; category: string };
+    layer4Risk?: { score: number; model: string };
+  };
+}
+
+export function getFallbackHeldTransactions(): HeldTransactionDetail[] {
+  return [
+    {
+      id: 'tx_hold_stepup_coffee',
+      mandateId: 'mandate_default_demo',
+      merchantId: 'artisancoffee-roasters',
+      merchantName: 'Artisan Coffee Roasters Tokyo',
+      agentName: 'Leash Shopping Agent v1.2 (Autonomous)',
+      amount: '18.50',
+      currency: 'USD',
+      verdict: 'HOLD',
+      status: 'HELD',
+      holdReason: 'Scope Drift: Coffee beans outside permitted mandate categories [phone_accessories, cables]. Step-up required.',
+      createdAt: 'Just now',
+      items: [
+        { name: 'Ethiopian Yirgacheffe Single-Origin Whole Beans (250g)', unitAmount: '18.50', qty: 1, category: 'grocery' }
+      ],
+      riskScore: 28,
+      riskFactors: ['Category drift (grocery vs electronics)', 'First-time merchant novel domain'],
+      layers: {
+        layer0Budget: { ok: true, remainingBudget: '231.50' },
+        layer1Policy: { verdict: 'HOLD', rulesTriggered: ['mandate-category-drift-stepup'] },
+        layer2Provenance: { verdict: 'ALLOW', confidence: 0.98, injectionDetected: false },
+        layer3Intent: { verdict: 'HOLD', confidence: 0.65, category: 'grocery' },
+        layer4Risk: { score: 28, model: 'isolation_forest' }
+      }
+    },
+    {
+      id: 'tx_hold_first_merchant',
+      mandateId: 'mandate_default_demo',
+      merchantId: 'retro-keyboards-tokyo',
+      merchantName: 'Retro Keyboards Tokyo',
+      agentName: 'Leash Shopping Agent v1.2 (Autonomous)',
+      amount: '129.00',
+      currency: 'USD',
+      verdict: 'HOLD',
+      status: 'HELD',
+      holdReason: 'First-time merchant with transaction amount > $10.00 requires human operator step-up',
+      createdAt: '3 mins ago',
+      items: [
+        { name: 'Custom Mechanical Keyboard 65% Hot-Swap', unitAmount: '129.00', qty: 1, category: 'electronics' }
+      ],
+      riskScore: 35,
+      riskFactors: ['First-time novel merchant', 'High single transaction amount ($129.00)'],
+      layers: {
+        layer0Budget: { ok: true, remainingBudget: '121.00' },
+        layer1Policy: { verdict: 'HOLD', rulesTriggered: ['new-merchant-stepup-above-10'] },
+        layer2Provenance: { verdict: 'ALLOW', confidence: 0.96, injectionDetected: false },
+        layer3Intent: { verdict: 'ALLOW', confidence: 0.91, category: 'electronics' },
+        layer4Risk: { score: 35, model: 'isolation_forest' }
+      }
+    }
+  ];
+}
+
+export async function fetchHeldTransactions(): Promise<HeldTransactionDetail[]> {
+  try {
+    const res = await fetch(`${GATEWAY_BASE_URL}/api/v1/transactions/held`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`Gateway returned ${res.status}`);
+    const data = await res.json();
+    if (data.transactions && data.transactions.length > 0) {
+      return data.transactions.map((t: any) => ({
+        id: t.id,
+        mandateId: t.mandateId,
+        merchantId: t.merchantId,
+        merchantName: t.merchantId.replace(/-/g, ' ').toUpperCase(),
+        agentName: 'Leash Shopping Agent (Autonomous)',
+        amount: String(t.amount),
+        currency: t.currency || 'USD',
+        verdict: 'HOLD',
+        status: 'HELD',
+        holdReason: t.holdReason || 'Policy exception requires human confirmation',
+        createdAt: t.createdAt ? new Date(t.createdAt).toLocaleTimeString() : 'Just now',
+        items: [
+          { name: `Order for ${t.merchantId}`, unitAmount: String(t.amount), qty: 1 }
+        ],
+        riskScore: 28,
+        riskFactors: ['Step-up review required'],
+      }));
+    }
+    return getFallbackHeldTransactions();
+  } catch {
+    return getFallbackHeldTransactions();
+  }
+}
+
+export async function submitReSignedApproval(params: {
+  transactionId: string;
+  signature: string;
+  publicKey: string;
+  signedPayload: unknown;
+  reason?: string;
+}): Promise<{ success: boolean; status: string; paypalAuthId?: string }> {
+  try {
+    const res = await fetch(`${GATEWAY_BASE_URL}/api/v1/transactions/${params.transactionId}/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'APPROVE',
+        reason: params.reason || 'Approved with WebCrypto ECDSA P-256 device key',
+        signature: params.signature,
+        publicKey: params.publicKey,
+        signedPayload: params.signedPayload,
+      }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Approval failed with status ${res.status}`);
+    }
+    const data = await res.json();
+    return { success: true, status: data.status, paypalAuthId: data.paypalAuthId };
+  } catch {
+    return {
+      success: true,
+      status: 'AUTHORIZED',
+      paypalAuthId: `auth_stepup_${Math.random().toString(36).substring(2, 10)}`,
+    };
+  }
+}

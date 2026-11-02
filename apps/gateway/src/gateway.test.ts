@@ -413,4 +413,203 @@ describe("Leash Gateway API & Budget Mutex Rails", () => {
     expect(updated?.status).toBe("AUTHORIZED");
     expect(updated?.verdict).toBe("ALLOW");
   });
+
+  it("lists held transactions via GET /api/v1/transactions/held", async () => {
+    const server = await createServer();
+    const txId = "tx_held_list_test";
+    await GatewayRepository.saveTransaction({
+      id: txId,
+      mandateId: "mdt_gateway_test",
+      merchantId: "mer_retro_keyboards",
+      amount: "65.00",
+      currency: "USD",
+      verdict: "HOLD",
+      status: "HELD",
+      holdReason: "Category drift: mechanical keyboard outside phone accessories",
+    });
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/api/v1/transactions/held",
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.count).toBeGreaterThan(0);
+    expect(body.transactions.some((t: any) => t.id === txId)).toBe(true);
+  });
+
+  it("registers and dispatches Web Push notifications (/api/v1/push/*)", async () => {
+    const server = await createServer();
+
+    // 1. Get VAPID public key
+    const pubKeyRes = await server.inject({
+      method: "GET",
+      url: "/api/v1/push/public-key",
+    });
+    expect(pubKeyRes.statusCode).toBe(200);
+    const pubKeyBody = JSON.parse(pubKeyRes.body);
+    expect(pubKeyBody.publicKey).toBeDefined();
+
+    // 2. Register subscription
+    const subRes = await server.inject({
+      method: "POST",
+      url: "/api/v1/push/subscribe",
+      payload: {
+        endpoint: "https://fcm.googleapis.com/fcm/send/test_device_token_123",
+        keys: {
+          p256dh: "BMb5_test_key",
+          auth: "test_auth_secret",
+        },
+      },
+    });
+    expect(subRes.statusCode).toBe(200);
+    const subBody = JSON.parse(subRes.body);
+    expect(subBody.success).toBe(true);
+    expect(subBody.totalSubscribers).toBeGreaterThan(0);
+
+    // 3. Broadcast alert
+    const sendRes = await server.inject({
+      method: "POST",
+      url: "/api/v1/push/send",
+      payload: {
+        title: "Test Payment Held",
+        body: "Amount $45.00 requires confirmation",
+        data: { transactionId: "tx_123" },
+      },
+    });
+    expect(sendRes.statusCode).toBe(200);
+    const sendBody = JSON.parse(sendRes.body);
+    expect(sendBody.delivered).toBe(true);
+  });
+
+  it("verifies ECDSA P-256 WebCrypto signature during step-up re-signing approval", async () => {
+    const server = await createServer();
+    const txId = "tx_stepup_crypto_test";
+
+    await GatewayRepository.saveTransaction({
+      id: txId,
+      mandateId: "mdt_gateway_test",
+      merchantId: "mer_gadgethub",
+      amount: "45.00",
+      currency: "USD",
+      verdict: "HOLD",
+      status: "HELD",
+      holdReason: "First-time merchant transaction step-up",
+    });
+
+    // Generate WebCrypto ECDSA P-256 key pair
+    const keyPair = await crypto.subtle.generateKey(
+      { name: "ECDSA", namedCurve: "P-256" },
+      true,
+      ["sign", "verify"]
+    );
+    const exportedPub = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+    const publicKeyBase64 = Buffer.from(exportedPub).toString("base64");
+
+    const signedPayload = {
+      transactionId: txId,
+      mandateId: "mdt_gateway_test",
+      approvedAmount: "45.00",
+      currency: "USD",
+      action: "APPROVE",
+    };
+
+    // Sign canonical payload
+    const canonicalStr = JSON.stringify(signedPayload, Object.keys(signedPayload).sort());
+    const signatureBuffer = await crypto.subtle.sign(
+      { name: "ECDSA", hash: { name: "SHA-256" } },
+      keyPair.privateKey,
+      new TextEncoder().encode(canonicalStr)
+    );
+    const signatureBase64 = Buffer.from(signatureBuffer).toString("base64");
+
+    // 1. Submit valid approval with re-signed payload
+    const approveRes = await server.inject({
+      method: "POST",
+      url: `/api/v1/transactions/${txId}/action`,
+      payload: {
+        action: "APPROVE",
+        reason: "Approved with biometric device WebCrypto key",
+        signature: signatureBase64,
+        publicKey: publicKeyBase64,
+        signedPayload,
+      },
+    });
+
+    expect(approveRes.statusCode).toBe(200);
+    const approveBody = JSON.parse(approveRes.body);
+    expect(approveBody.status).toBe("AUTHORIZED");
+    expect(approveBody.paypalAuthId).toBeDefined();
+
+    // 2. Reject when signature is invalid (Fail-Closed)
+    const txTamperedId = "tx_stepup_tamper_test";
+    await GatewayRepository.saveTransaction({
+      id: txTamperedId,
+      mandateId: "mdt_gateway_test",
+      merchantId: "mer_gadgethub",
+      amount: "45.00",
+      currency: "USD",
+      verdict: "HOLD",
+      status: "HELD",
+    });
+
+    const badApproveRes = await server.inject({
+      method: "POST",
+      url: `/api/v1/transactions/${txTamperedId}/action`,
+      payload: {
+        action: "APPROVE",
+        signature: signatureBase64, // Signature for a different payload!
+        publicKey: publicKeyBase64,
+        signedPayload: {
+          transactionId: txTamperedId,
+          mandateId: "mdt_gateway_test",
+          approvedAmount: "999.00", // Tampered!
+          currency: "USD",
+          action: "APPROVE",
+        },
+      },
+    });
+
+    expect(badApproveRes.statusCode).toBe(400);
+    const badBody = JSON.parse(badApproveRes.body);
+    expect(badBody.error).toContain("Fail-Closed");
+  });
+
+  it("releases reserved budget when human denies held transaction", async () => {
+    const server = await createServer();
+    const txId = "tx_deny_budget_release";
+    const mandateId = "mdt_gateway_test";
+
+    // Reserve $40
+    await lockAndReserveBudget(mandateId, 40.0);
+
+    await GatewayRepository.saveTransaction({
+      id: txId,
+      mandateId,
+      merchantId: "mer_sketchy_deals",
+      amount: "40.00",
+      currency: "USD",
+      verdict: "HOLD",
+      status: "HELD",
+      holdReason: "Potential malicious seller",
+    });
+
+    const denyRes = await server.inject({
+      method: "POST",
+      url: `/api/v1/transactions/${txId}/action`,
+      payload: {
+        action: "DENY",
+        reason: "User identified potential fraud",
+      },
+    });
+
+    expect(denyRes.statusCode).toBe(200);
+    const denyBody = JSON.parse(denyRes.body);
+    expect(denyBody.status).toBe("BLOCKED");
+
+    // Verify transaction status in repo
+    const tx = await GatewayRepository.getTransaction(txId);
+    expect(tx?.status).toBe("BLOCKED");
+    expect(tx?.verdict).toBe("BLOCK");
+  });
 });
