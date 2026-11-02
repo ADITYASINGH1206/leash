@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createServer } from './index.js';
-import { handleRequestPaymentTool } from './mcp/index.js';
+import { handleRequestPaymentTool, getInMemoryLedger } from './mcp/index.js';
+import { verifyLedgerChain } from '@leash/shared';
 import type { PaymentRequest } from '@leash/mandates';
 
 describe('Leash Gateway API & Fail-Closed Processing', () => {
@@ -45,7 +46,7 @@ describe('Leash Gateway API & Fail-Closed Processing', () => {
     expect(result.holdReason).toContain('gift cards');
   });
 
-  it('authorizes clean purchases for known merchants passing policies', async () => {
+  it('authorizes clean purchases and records cryptographic hash chain', async () => {
     const cleanReq: PaymentRequest = {
       mandateId: 'mdt_clean_123',
       cart: {
@@ -72,5 +73,11 @@ describe('Leash Gateway API & Fail-Closed Processing', () => {
     expect(result.status).toBe('AUTHORIZED');
     expect(result.orderId).toBeDefined();
     expect(result.trace.verdict).toBe('ALLOW');
+
+    // Verify ledger chain validity
+    const ledger = getInMemoryLedger();
+    expect(ledger.length).toBeGreaterThan(0);
+    const verification = verifyLedgerChain([...ledger]);
+    expect(verification.valid).toBe(true);
   });
 });
