@@ -11,6 +11,8 @@ import { jobRunner } from "./jobs/index.js";
 
 export * from "./arbiter/index.js";
 export * from "./jobs/index.js";
+export * from "./db/budget-mutex.js";
+export * from "./db/repository.js";
 
 export async function createServer() {
   const app = Fastify({ logger: false });
