@@ -19,6 +19,64 @@ export interface IntentJudgeOptions {
 }
 
 /**
+ * Creates an LLM invoker function targeting the Gemini API with structured JSON output.
+ */
+export function createGeminiLlmInvoker(
+  apiKey?: string,
+  model = "gemini-2.5-flash",
+): (systemPrompt: string, userPrompt: string) => Promise<string> {
+  const key =
+    apiKey ||
+    (typeof process !== "undefined" ? process.env?.GEMINI_API_KEY : undefined);
+  if (!key) {
+    throw new Error("GEMINI_API_KEY is not configured");
+  }
+
+  return async (systemPrompt: string, userPrompt: string) => {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+    const payload = {
+      system_instruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: userPrompt }],
+        },
+      ],
+      generationConfig: {
+        response_mime_type: "application/json",
+        temperature: 0.1,
+      },
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Gemini API error: ${res.status} ${res.statusText}`);
+    }
+
+    const data = (await res.json()) as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{ text?: string }>;
+        };
+      }>;
+    };
+
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error("Gemini API returned empty response content");
+    }
+    return text;
+  };
+}
+
+/**
  * Deterministic baseline intent alignment engine.
  * Evaluates intent consistency against budget, permitted categories,
  * semantic item terms, and known injection triggers.

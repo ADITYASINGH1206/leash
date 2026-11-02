@@ -5,7 +5,13 @@ import {
   ListToolsRequestSchema,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import { PaymentRequestSchema, type PaymentRequest } from "@leash/mandates";
+import {
+  PaymentRequestSchema,
+  type PaymentRequest,
+  evaluateIntentAlignment,
+  calibrateJudgeVerdict,
+  type BuildJudgePromptParams,
+} from "@leash/mandates";
 import {
   type DecisionTrace,
   type DecisionVerdict,
@@ -49,6 +55,21 @@ seedInMemoryMandate({
   id: "mandate_default_demo",
   maxAmount: 250.0,
   spentAmount: 0.0,
+  intentText: "Buy accessories, apparel, groceries, or essentials under budget",
+  playback: "Authorized spending for daily items under $250",
+  constraints: {
+    maxTotal: "250.00",
+    maxPerTxn: "250.00",
+    currency: "USD",
+    categories: [
+      "phone_accessories",
+      "cables",
+      "chargers",
+      "apparel",
+      "grocery",
+    ],
+    itemTerms: ["case", "cable", "charger", "tee", "hoodie", "coffee", "beans"],
+  },
 });
 
 /**
@@ -219,46 +240,111 @@ export async function handleRequestPaymentTool(
           },
         );
 
-        // 5. Strict Fail-Closed Verdict Arbiter
+        // 5. Evaluate Layer 3: Quarantined Intent Judge (Isolated Evaluator)
+        const inMemoryRecord = getInMemoryMandate(req.mandateId);
+        const intentText =
+          inMemoryRecord?.intentText ??
+          "Authorized purchases within specified budget and category limits";
+        const playback =
+          inMemoryRecord?.playback ?? "Approved human spending mandate";
+        const constraints = inMemoryRecord?.constraints ?? {
+          maxTotal: inMemoryRecord
+            ? String(inMemoryRecord.maxAmount)
+            : req.cart.total,
+          maxPerTxn: inMemoryRecord
+            ? String(inMemoryRecord.maxAmount)
+            : req.cart.total,
+          currency: req.cart.currency,
+          categories: [
+            "phone_accessories",
+            "cables",
+            "chargers",
+            "apparel",
+            "grocery",
+          ],
+          itemTerms: [
+            "case",
+            "cable",
+            "charger",
+            "tee",
+            "hoodie",
+            "coffee",
+            "beans",
+          ],
+        };
+
+        const judgeParams: BuildJudgePromptParams = {
+          mandate: {
+            intentText,
+            playback,
+            constraints,
+          },
+          cart: req.cart,
+          rawRationale: req.rationale,
+          toolCallSummary: req.evidence.map((e) => `CRAWL_EVIDENCE: ${e.url}`),
+        };
+
+        const judgeVerdict = await evaluateIntentAlignment(judgeParams);
+        const calibratedIntent = calibrateJudgeVerdict(judgeVerdict);
+
+        await GatewayRepository.appendLedgerEvent(
+          LEDGER_EVENT_KINDS.LAYER_INTENT_EVALUATED,
+          decisionId,
+          {
+            verdict: judgeVerdict.verdict,
+            score: judgeVerdict.score,
+            violated: judgeVerdict.violated,
+            reason: judgeVerdict.reason,
+            calibratedDecision: calibratedIntent.decision,
+          },
+        );
+
+        // 6. Strict Fail-Closed Verdict Arbiter across all layers
         let verdict: DecisionVerdict = "HOLD";
         let status: MCPPaymentResult["status"] = "HELD";
         const holdReasons: string[] = [];
 
-        // Check for hard BLOCK
+        // Check for any hard BLOCK
         if (policyResult.verdict === "BLOCK") {
-          verdict = "BLOCK";
-          status = "BLOCKED";
           holdReasons.push(
             ...policyResult.triggeredRules.map((r) => r.description),
           );
         }
         if (provenanceResult.verdict === "BLOCK") {
-          verdict = "BLOCK";
-          status = "BLOCKED";
           holdReasons.push(provenanceResult.message);
         }
+        if (calibratedIntent.decision === "BLOCK") {
+          holdReasons.push(`Intent Judge Block: ${judgeVerdict.reason}`);
+        }
 
-        // If not blocked, check for HOLD
-        if (verdict !== "BLOCK") {
+        if (
+          policyResult.verdict === "BLOCK" ||
+          provenanceResult.verdict === "BLOCK" ||
+          calibratedIntent.decision === "BLOCK"
+        ) {
+          verdict = "BLOCK";
+          status = "BLOCKED";
+        } else if (
+          policyResult.verdict === "HOLD" ||
+          provenanceResult.verdict === "HOLD" ||
+          calibratedIntent.decision === "HOLD"
+        ) {
+          verdict = "HOLD";
+          status = "HELD";
           if (policyResult.verdict === "HOLD") {
-            verdict = "HOLD";
-            status = "HELD";
             holdReasons.push(
               ...policyResult.triggeredRules.map((r) => r.description),
             );
           }
           if (provenanceResult.verdict === "HOLD") {
-            verdict = "HOLD";
-            status = "HELD";
             holdReasons.push(provenanceResult.message);
           }
-          if (
-            policyResult.verdict === "ALLOW" &&
-            provenanceResult.verdict === "ALLOW"
-          ) {
-            verdict = "ALLOW";
-            status = "AUTHORIZED";
+          if (calibratedIntent.decision === "HOLD") {
+            holdReasons.push(`Intent Judge Hold: ${judgeVerdict.reason}`);
           }
+        } else {
+          verdict = "ALLOW";
+          status = "AUTHORIZED";
         }
 
         const holdReason =
@@ -267,7 +353,7 @@ export async function handleRequestPaymentTool(
         let orderId: string | undefined;
         let authorizationId: string | undefined;
 
-        // 6. If ALLOW: Execute PayPal Orders v2 with intent: AUTHORIZE
+        // 7. If ALLOW: Execute PayPal Orders v2 with intent: AUTHORIZE
         if (status === "AUTHORIZED") {
           const mandate = await GatewayRepository.getMandate(req.mandateId);
           const vaultId =
@@ -332,13 +418,24 @@ export async function handleRequestPaymentTool(
               code: provenanceResult.code,
               message: provenanceResult.message,
             },
+            {
+              layer: "intent" as const,
+              verdict: calibratedIntent.decision,
+              code: calibratedIntent.actionCode,
+              message: judgeVerdict.reason,
+            },
           ],
-          riskScore: verdict === "BLOCK" ? 95 : verdict === "HOLD" ? 55 : 12,
+          riskScore:
+            verdict === "BLOCK"
+              ? 95
+              : verdict === "HOLD"
+                ? Math.max(55, Math.round(judgeVerdict.score * 100))
+                : Math.max(12, Math.round(judgeVerdict.score * 100)),
           durationMs,
           timestamp: new Date().toISOString(),
         };
 
-        // 7. Record final verdict to ledger and save transaction
+        // 8. Record final verdict to ledger and save transaction
         await GatewayRepository.appendLedgerEvent(
           LEDGER_EVENT_KINDS.DECISION_VERDICT,
           decisionId,

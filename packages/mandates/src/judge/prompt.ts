@@ -1,7 +1,23 @@
-import type { CartMandate, IntentMandate } from "../schemas.js";
+import type { CartMandate } from "../schemas.js";
+
+export interface JudgeMandateConstraints {
+  maxTotal: string;
+  maxPerTxn?: string;
+  currency: string;
+  categories: string[];
+  itemTerms?: string[];
+  merchantAllow?: string[];
+  merchantBlock?: string[];
+  maxTxnCount?: number;
+  expiresAt?: string;
+}
 
 export interface BuildJudgePromptParams {
-  mandate: Pick<IntentMandate, "intentText" | "playback" | "constraints">;
+  mandate: {
+    intentText: string;
+    playback: string;
+    constraints: JudgeMandateConstraints;
+  };
   cart: Pick<
     CartMandate,
     "merchantId" | "items" | "total" | "currency" | "shipping"
@@ -68,11 +84,14 @@ DECISION CALIBRATION GUIDELINES:
           .join("\n")
       : "  - None";
 
+  const maxPerTxn =
+    params.mandate.constraints.maxPerTxn ?? params.mandate.constraints.maxTotal;
+
   const userPrompt = `### [IMMUTABLE] Human Intent Mandate
 - Stated Intent: "${sanitizeQuarantineText(params.mandate.intentText)}"
 - Playback Confirmation: "${sanitizeQuarantineText(params.mandate.playback)}"
 - Max Total Budget: $${params.mandate.constraints.maxTotal} ${params.mandate.constraints.currency}
-- Max Per Transaction: $${params.mandate.constraints.maxPerTxn} ${params.mandate.constraints.currency}
+- Max Per Transaction: $${maxPerTxn} ${params.mandate.constraints.currency}
 - Permitted Categories: ${JSON.stringify(params.mandate.constraints.categories)}
 
 ### [VERIFIED] Merchant Cart Manifest
