@@ -102,6 +102,15 @@ export class BuyerShopperAgent {
   }
 
   /**
+   * Resets the entire session state and re-binds internal tools safely.
+   */
+  resetSession(newState?: BuyerAgentSessionState) {
+    this.state = newState || createDefaultSession({ attackMode: this.state.attackMode });
+    this.tools = new BuyerAgentTools(this.state);
+    return this.state;
+  }
+
+  /**
    * Resets the cart and starts a fresh shopping mandate.
    */
   resetCart() {

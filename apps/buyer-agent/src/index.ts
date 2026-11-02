@@ -96,15 +96,11 @@ export async function createBuyerAgentServer() {
 
   // REST API: Reset Session & Cart
   app.post("/api/reset", async () => {
-    const attackMode = agent.state.attackMode;
-    const freshSession = createDefaultSession({ attackMode });
-    agent.state = freshSession;
-    // Re-bind tools with fresh state
-    agent["tools"] = new (agent["tools"].constructor as any)(agent.state);
+    const freshSession = agent.resetSession();
     return {
       success: true,
       message: "Session reset successfully",
-      mandate: agent.state.mandate,
+      mandate: freshSession.mandate,
     };
   });
 
