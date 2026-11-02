@@ -122,7 +122,11 @@ export async function fetchEvidenceUrl(
 
   // If URL targets example.com or demo fixtures in test/offline environment, resolve cleanly
   const hostname = validatedUrl.hostname.toLowerCase();
-  if (hostname.endsWith("example.com") || hostname === "test.local") {
+  if (
+    hostname.endsWith("example.com") ||
+    hostname === "test.local" ||
+    hostname.endsWith("leash.dev")
+  ) {
     const demoProduct = resolveDemoStoreProduct(validatedUrl);
     if (demoProduct) {
       return {

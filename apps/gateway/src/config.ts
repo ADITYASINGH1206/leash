@@ -5,5 +5,5 @@ export interface GatewayConfig {
 
 export const config: GatewayConfig = {
   port: Number(process.env.PORT || 4000),
-  environment: process.env.NODE_ENV || 'development'
+  environment: process.env.NODE_ENV || "development",
 };
