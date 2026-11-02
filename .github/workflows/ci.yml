@@ -34,7 +34,7 @@ jobs:
           cache: "pnpm"
 
       - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build Monorepo (Turbo)
         run: pnpm build
@@ -62,5 +62,5 @@ jobs:
           pip install pytest pytest-asyncio
 
       - name: Run Python ML Test Suite
-        run: pytest services/ml/tests
+        run: PYTHONPATH=. pytest services/ml/tests
 
