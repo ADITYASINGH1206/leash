@@ -230,7 +230,7 @@ def get_pr_head_sha(pr_number: str) -> str:
 
 def call_gemini(prompt: str, api_key: str) -> str:
     """Call Google Gemini API with automatic model fallback."""
-    models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    models = ["gemini-3.8-flash", "gemini-2.5-flash"]
     last_err = None
 
     for model in models:
