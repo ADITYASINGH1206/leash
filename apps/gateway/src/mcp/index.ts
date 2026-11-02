@@ -187,9 +187,12 @@ export async function handleRequestPaymentTool(req: PaymentRequest): Promise<MCP
 
         // 5. If ALLOW: Execute PayPal Orders v2 with intent: AUTHORIZE
         if (status === 'AUTHORIZED') {
+          const mandate = await GatewayRepository.getMandate(req.mandateId);
+          const vaultId =
+            process.env.PAYPAL_VAULT_ID || (mandate ? `vault_${mandate.userId}` : 'vault_sandbox_token');
           const idempotencyKey = randomUUID();
           const paypalOrder = await paypalClient.createAuthorizeOrder({
-            vaultId: 'vault_live_sandbox_token',
+            vaultId,
             merchantPayeeEmail: `${req.cart.merchantId}@sandbox.paypal.com`,
             amount: {
               currency: req.cart.currency,

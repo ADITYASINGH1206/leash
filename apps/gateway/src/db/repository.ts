@@ -2,17 +2,20 @@ import { getDb } from './connection.js';
 import {
   ledger as ledgerTable,
   transactions as transactionsTable,
+  mandates as mandatesTable,
   type TransactionRow,
+  type MandateRow,
 } from './schema.js';
 import { LedgerService, type LedgerRow, computeLedgerHash, GENESIS_HASH } from '@leash/shared';
 import { eq, desc } from 'drizzle-orm';
 import { logger } from '@leash/shared';
 
-// Global shared ledger service instance (tracks ledger state in-memory or caches DB)
+// Global shared ledger service instance (tracks ledger state in test/dev mode)
 const inMemoryLedgerService = new LedgerService();
 
-// In-memory repositories
+// In-memory repositories for test/dev
 const inMemoryTransactions = new Map<string, TransactionRow>();
+const inMemoryMandates = new Map<string, MandateRow>();
 
 export class GatewayRepository {
   /**
@@ -33,9 +36,15 @@ export class GatewayRepository {
           hash: r.hash,
         }));
       } catch (err) {
-        logger.error('Failed to read ledger from database, falling back to memory', { error: String(err) });
+        logger.error('Failed to read ledger from database', { error: String(err) });
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error('Database unavailable for ledger query in production (Fail-Closed)');
+        }
       }
+    } else if (process.env.NODE_ENV === 'production') {
+      throw new Error('Database unavailable for ledger query in production (Fail-Closed)');
     }
+
     return inMemoryLedgerService.getRows();
   }
 
@@ -79,8 +88,13 @@ export class GatewayRepository {
           };
         }
       } catch (err) {
-        logger.error('Database ledger insert failed, falling back to in-memory', { error: String(err) });
+        logger.error('Database ledger insert failed', { error: String(err) });
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error('Database unavailable for ledger append in production (Fail-Closed)');
+        }
       }
+    } else if (process.env.NODE_ENV === 'production') {
+      throw new Error('Database unavailable for ledger append in production (Fail-Closed)');
     }
 
     return inMemoryLedgerService.append(kind, refId, payload);
@@ -132,10 +146,15 @@ export class GatewayRepository {
         return;
       } catch (err) {
         logger.error('Failed to save transaction to database', { error: String(err) });
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error('Database unavailable for transaction saving in production (Fail-Closed)');
+        }
       }
+    } else if (process.env.NODE_ENV === 'production') {
+      throw new Error('Database unavailable for transaction saving in production (Fail-Closed)');
     }
 
-    // In-memory fallback
+    // In-memory fallback for test/dev
     const now = new Date();
     inMemoryTransactions.set(txData.id, {
       id: txData.id,
@@ -168,8 +187,39 @@ export class GatewayRepository {
         }
       } catch (err) {
         logger.error('Database getTransaction failed', { error: String(err) });
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error('Database unavailable for transaction retrieval in production');
+        }
       }
+    } else if (process.env.NODE_ENV === 'production') {
+      throw new Error('Database unavailable for transaction retrieval in production');
     }
+
     return inMemoryTransactions.get(id) || null;
+  }
+
+  /**
+   * Retrieves mandate by ID
+   */
+  static async getMandate(id: string): Promise<MandateRow | null> {
+    const db = getDb();
+    if (db) {
+      try {
+        const rows = await db.select().from(mandatesTable).where(eq(mandatesTable.id, id));
+        const first = rows[0];
+        if (first) {
+          return first;
+        }
+      } catch (err) {
+        logger.error('Database getMandate failed', { error: String(err) });
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error('Database unavailable for mandate retrieval in production');
+        }
+      }
+    } else if (process.env.NODE_ENV === 'production') {
+      throw new Error('Database unavailable for mandate retrieval in production');
+    }
+
+    return inMemoryMandates.get(id) || null;
   }
 }

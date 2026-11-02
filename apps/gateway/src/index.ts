@@ -6,6 +6,7 @@ import { PaymentRequestSchema } from '@leash/mandates';
 import { GatewayRepository } from './db/repository.js';
 import { verifyLedgerChain, LEDGER_EVENT_KINDS } from '@leash/shared';
 import { seedInMemoryMandate, getInMemoryMandate } from './db/budget-mutex.js';
+import { closeDb } from './db/connection.js';
 
 export async function createServer() {
   const app = Fastify({ logger: false });
@@ -13,6 +14,7 @@ export async function createServer() {
 
   app.addHook('onClose', async () => {
     await mcpServer.close();
+    await closeDb();
   });
 
   // Basic Health Endpoint

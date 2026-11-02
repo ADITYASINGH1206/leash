@@ -159,7 +159,19 @@ export async function lockAndReserveBudget(
     }
   }
 
-  // Fallback: In-memory atomic FIFO mutex
+  // Strict Fail-Closed Check: In-memory fallback is strictly disallowed in production
+  if (process.env.NODE_ENV === 'production') {
+    logger.error('CRITICAL: Database unavailable during budget reservation in production');
+    return {
+      success: false,
+      mandateId,
+      reservedAmount: '0.00',
+      remainingBudget: '0.00',
+      reason: 'Database unavailable: In-memory budget fallback prohibited in production (Fail-Closed)',
+    };
+  }
+
+  // Development & Test Mode: In-memory atomic FIFO mutex
   const release = await acquireMandateLock(mandateId);
   try {
     const mandate = inMemoryMandates.get(mandateId);

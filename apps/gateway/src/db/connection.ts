@@ -11,6 +11,9 @@ let client: ReturnType<typeof postgres> | null = null;
 export function getDb(): DrizzleDb | null {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('DATABASE_URL environment variable is strictly required in production.');
+    }
     return null;
   }
 
@@ -26,6 +29,9 @@ export function getDb(): DrizzleDb | null {
       logger.info('Connected to PostgreSQL database');
     } catch (err) {
       logger.error('Failed to connect to PostgreSQL', { error: String(err) });
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(`Database connection failed in production: ${String(err)}`);
+      }
       return null;
     }
   }
