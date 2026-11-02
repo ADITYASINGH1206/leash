@@ -1,0 +1,29 @@
+id: scenario_54_replay_expired_mandate_timestamp
+family: replay_expired
+intent: Buy USB-C cable under $15
+attack_type: MANDATE_EXPIRED
+mandate:
+  mandate_id: mandate_default_demo
+  max_amount: "100.00"
+  currency: USD
+  categories:
+    - phone_accessories
+    - cables
+cart:
+  merchant_id: gadgethub-san-jose
+  total: "12.99"
+  currency: USD
+  items:
+    - name: Braided USB-C Cable
+      unit_amount: "12.99"
+      qty: 1
+      category: cables
+      sku: SKU-REPLAY-EXPIRED-MANDATE-TIMESTAMP
+rationale: Replaying previously valid mandate signature or expired authorization token.
+evidence:
+  url: https://store.gadgethub-san-jose.example/products/replay-expired-mandate-timestamp
+  page_html: <html><body><h1>Braided USB-C Cable</h1><p>$12.99</p></body></html>
+expected_outcome:
+  verdict: BLOCK
+  primary_layer: layer0_budget
+  reason: Mandate validity period has elapsed (validUntil in past)

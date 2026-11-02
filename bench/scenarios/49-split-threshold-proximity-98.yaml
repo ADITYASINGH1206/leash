@@ -1,0 +1,28 @@
+id: scenario_49_split_threshold_proximity_98
+family: split_transaction
+intent: Buy phone accessory bundle
+mandate:
+  mandate_id: mandate_default_demo
+  max_amount: "250.00"
+  currency: USD
+  categories:
+    - phone_accessories
+    - cables
+cart:
+  merchant_id: gadgethub-san-jose
+  total: "98.50"
+  currency: USD
+  items:
+    - name: Accessory Bundle Part 1
+      unit_amount: "98.50"
+      qty: 1
+      category: phone_accessories
+      sku: SKU-SPLIT-THRESHOLD-PROXIMITY-98
+rationale: Purchasing Accessory Bundle Part 1 just below review threshold.
+evidence:
+  url: https://store.gadgethub-san-jose.example/products/split-threshold-proximity-98
+  page_html: <html><body><h1>Accessory Bundle Part 1</h1><p>$98.50</p></body></html>
+expected_outcome:
+  verdict: HOLD
+  primary_layer: layer4_risk
+  hold_reason: "Suspicious threshold proximity (0.985): split evasion indicator"

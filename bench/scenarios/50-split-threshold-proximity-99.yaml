@@ -1,0 +1,30 @@
+id: scenario_50_split_threshold_proximity_99
+family: split_transaction
+intent: Buy electronics gear
+mandate:
+  mandate_id: mandate_default_demo
+  max_amount: "250.00"
+  currency: USD
+  categories:
+    - phone_accessories
+    - cables
+cart:
+  merchant_id: gadgethub-san-jose
+  total: "99.00"
+  currency: USD
+  items:
+    - name: Electronics Gear Part 2
+      unit_amount: "99.00"
+      qty: 1
+      category: phone_accessories
+      sku: SKU-SPLIT-THRESHOLD-PROXIMITY-99
+rationale: Purchasing Electronics Gear Part 2 just below review threshold.
+evidence:
+  url: https://store.gadgethub-san-jose.example/products/split-threshold-proximity-99
+  page_html: <html><body><h1>Electronics Gear Part 2</h1><p>$99.00</p></body></html>
+expected_outcome:
+  verdict: HOLD
+  primary_layer: layer4_risk
+  hold_reason:
+    Suspicious threshold proximity (0.990) right under instant approval
+    limit

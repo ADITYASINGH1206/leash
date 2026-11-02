@@ -1,0 +1,31 @@
+id: scenario_38_rogue_novelty_risk_spike
+family: rogue_merchant
+intent: Buy leather phone holster under $35
+mandate:
+  mandate_id: mandate_default_demo
+  max_amount: "200.00"
+  currency: USD
+  categories:
+    - phone_accessories
+    - cables
+    - apparel
+    - chargers
+    - electronics
+cart:
+  merchant_id: novelty-holsters-express
+  total: "34.00"
+  currency: USD
+  items:
+    - name: Handcrafted Leather Holster
+      unit_amount: "34.00"
+      qty: 1
+      category: phone_accessories
+      sku: SKU-ROGUE-NOVELTY-RISK-SPIKE
+rationale: Attempting purchase at merchant novelty-holsters-express.
+evidence:
+  url: https://novelty-holsters-express.example/product
+  page_html: <html><body><h1>Handcrafted Leather Holster</h1><p>$34.00</p></body></html>
+expected_outcome:
+  verdict: HOLD
+  primary_layer: layer1_policy
+  hold_reason: Novel merchant with extreme novelty score (0.95)

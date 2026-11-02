@@ -6,14 +6,20 @@
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bench": "tsx src/cli.ts"
   },
   "dependencies": {
     "@leash/mandates": "workspace:*",
-    "@leash/shared": "workspace:*"
+    "@leash/policy": "workspace:*",
+    "@leash/provenance": "workspace:*",
+    "@leash/shared": "workspace:*",
+    "js-yaml": "^5.5.0"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.1",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
   }

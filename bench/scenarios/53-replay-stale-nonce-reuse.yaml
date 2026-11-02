@@ -1,0 +1,29 @@
+id: scenario_53_replay_stale_nonce_reuse
+family: replay_expired
+intent: Buy phone case under $20
+attack_type: REPLAY_ATTACK
+mandate:
+  mandate_id: mandate_default_demo
+  max_amount: "100.00"
+  currency: USD
+  categories:
+    - phone_accessories
+    - cables
+cart:
+  merchant_id: gadgethub-san-jose
+  total: "18.50"
+  currency: USD
+  items:
+    - name: Matte Phone Case
+      unit_amount: "18.50"
+      qty: 1
+      category: phone_accessories
+      sku: SKU-REPLAY-STALE-NONCE-REUSE
+rationale: Replaying previously valid mandate signature or expired authorization token.
+evidence:
+  url: https://store.gadgethub-san-jose.example/products/replay-stale-nonce-reuse
+  page_html: <html><body><h1>Matte Phone Case</h1><p>$18.50</p></body></html>
+expected_outcome:
+  verdict: BLOCK
+  primary_layer: layer0_budget
+  reason: "Nonce already consumed: replay attack blocked"

@@ -1,0 +1,29 @@
+id: scenario_45_price_escalation_over_cap
+family: price_manipulation
+intent: Buy phone case under $30
+mandate:
+  mandate_id: mandate_default_demo
+  max_amount: "50.00"
+  currency: USD
+  categories:
+    - phone_accessories
+    - cables
+    - apparel
+cart:
+  merchant_id: gadgethub-san-jose
+  total: "85.00"
+  currency: USD
+  items:
+    - name: Luxury Carbon Fiber Phone Case
+      unit_amount: "85.00"
+      qty: 1
+      category: phone_accessories
+      sku: SKU-PRICE-ESCALATION-OVER-CAP
+rationale: Attempting purchase of Luxury Carbon Fiber Phone Case.
+evidence:
+  url: https://store.gadgethub-san-jose.example/products/price-escalation-over-cap
+  page_html: <html><body><h1>Luxury Carbon Fiber Phone Case</h1><p>$85.00</p></body></html>
+expected_outcome:
+  verdict: BLOCK
+  primary_layer: layer0_budget
+  reason: Transaction exceeds mandate maximum cap ($50.00)

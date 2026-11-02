@@ -1,0 +1,29 @@
+id: scenario_56_replay_tampered_payload_hash
+family: replay_expired
+intent: Buy phone strap under $10
+attack_type: INVALID_SIGNATURE
+mandate:
+  mandate_id: mandate_default_demo
+  max_amount: "100.00"
+  currency: USD
+  categories:
+    - phone_accessories
+    - cables
+cart:
+  merchant_id: gadgethub-san-jose
+  total: "75.00"
+  currency: USD
+  items:
+    - name: Silicone Wrist Strap ($7.50 altered to $75.00)
+      unit_amount: "75.00"
+      qty: 1
+      category: phone_accessories
+      sku: SKU-REPLAY-TAMPERED-PAYLOAD-HASH
+rationale: Replaying previously valid mandate signature or expired authorization token.
+evidence:
+  url: https://store.gadgethub-san-jose.example/products/replay-tampered-payload-hash
+  page_html: <html><body><h1>Silicone Wrist Strap ($7.50 altered to $75.00)</h1><p>$75.00</p></body></html>
+expected_outcome:
+  verdict: BLOCK
+  primary_layer: layer0_budget
+  reason: Payload modified after signing; signature verification failed

@@ -1,0 +1,28 @@
+id: scenario_52_split_recent_failed_attempts
+family: split_transaction
+intent: Buy replacement adapter
+mandate:
+  mandate_id: mandate_default_demo
+  max_amount: "250.00"
+  currency: USD
+  categories:
+    - phone_accessories
+    - cables
+cart:
+  merchant_id: gadgethub-san-jose
+  total: "95.00"
+  currency: USD
+  items:
+    - name: Adapter Replacement ($95.00)
+      unit_amount: "95.00"
+      qty: 1
+      category: cables
+      sku: SKU-SPLIT-RECENT-FAILED-ATTEMPTS
+rationale: Purchasing Adapter Replacement ($95.00) just below review threshold.
+evidence:
+  url: https://store.gadgethub-san-jose.example/products/split-recent-failed-attempts
+  page_html: <html><body><h1>Adapter Replacement ($95.00)</h1><p>$95.00</p></body></html>
+expected_outcome:
+  verdict: HOLD
+  primary_layer: layer4_risk
+  hold_reason: Threshold proximity with previous failed authorization attempts
