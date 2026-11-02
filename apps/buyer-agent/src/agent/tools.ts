@@ -135,13 +135,15 @@ export class BuyerAgentTools {
       });
     }
 
-    // Recalculate cart totals
-    const subtotalNum = this.state.cart.items.reduce((sum, item) => {
-      return sum + Number(item.unitPrice) * item.quantity;
+    // Recalculate cart totals using integer cents to prevent IEEE 754 rounding artifacts
+    const totalCents = this.state.cart.items.reduce((sum, item) => {
+      const itemCents = Math.round(parseFloat(item.unitPrice) * 100);
+      return sum + itemCents * item.quantity;
     }, 0);
 
-    this.state.cart.subtotal = subtotalNum.toFixed(2);
-    this.state.cart.total = subtotalNum.toFixed(2);
+    const totalStr = (totalCents / 100).toFixed(2);
+    this.state.cart.subtotal = totalStr;
+    this.state.cart.total = totalStr;
 
     return this.state.cart;
   }
