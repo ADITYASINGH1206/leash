@@ -2,18 +2,20 @@
   "name": "leash-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "Leash: Payment Firewall for AI Agents \u00b7 PayPal AI Hackathon",
+  "description": "Leash: Payment Firewall for AI Agents · PayPal AI Hackathon",
   "packageManager": "pnpm@11.22.0",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "spike": "tsx scripts/paypal_spike.ts",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
   },
   "devDependencies": {
     "prettier": "^3.4.2",
+    "tsx": "^4.23.15",
     "turbo": "^2.3.4",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
