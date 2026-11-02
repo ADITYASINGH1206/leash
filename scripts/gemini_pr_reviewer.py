@@ -229,8 +229,8 @@ def get_pr_head_sha(pr_number: str) -> str:
 
 
 def call_gemini(prompt: str, api_key: str) -> str:
-    """Call Google Gemini API with automatic model fallback."""
-    models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    """Call Google Gemini API with automatic model fallback and rate limit backoff."""
+    models = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
     last_err = None
 
     for model in models:
@@ -250,7 +250,7 @@ def call_gemini(prompt: str, api_key: str) -> str:
             method="POST",
         )
 
-        for attempt in range(2):
+        for attempt in range(3):
             try:
                 print(f"Attempting review with {model} (attempt {attempt + 1})...")
                 with urllib.request.urlopen(req, timeout=60) as resp:
@@ -261,11 +261,13 @@ def call_gemini(prompt: str, api_key: str) -> str:
                 err_body = e.read().decode("utf-8", errors="replace")
                 print(f"HTTPError with {model}: {e.code} - {err_body[:200]}")
                 last_err = e
-                time.sleep(2)
+                # Exponential backoff on rate limits
+                backoff = 5 * (2 ** attempt)
+                time.sleep(backoff)
             except Exception as e:
                 print(f"Error calling {model}: {e}")
                 last_err = e
-                time.sleep(2)
+                time.sleep(3)
 
     raise RuntimeError(f"All Gemini models failed. Last error: {last_err}")
 
