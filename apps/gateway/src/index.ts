@@ -1,13 +1,14 @@
 import Fastify from "fastify";
 import { config } from "./config.js";
 import { logger } from "@leash/shared";
-import { handleRequestPaymentTool, createMcpServer } from "./mcp/index.js";
+import { handleRequestPaymentTool, createMcpServer, paypalClient } from "./mcp/index.js";
 import { PaymentRequestSchema } from "@leash/mandates";
 import { GatewayRepository } from "./db/repository.js";
 import { verifyLedgerChain, LEDGER_EVENT_KINDS } from "@leash/shared";
 import { seedInMemoryMandate, getInMemoryMandate, releaseReservedBudget } from "./db/budget-mutex.js";
 import { closeDb } from "./db/connection.js";
 import { jobRunner } from "./jobs/index.js";
+import type { TransactionRow } from "./db/schema.js";
 
 export * from "./arbiter/index.js";
 export * from "./jobs/index.js";
@@ -190,6 +191,101 @@ export async function createServer() {
       id: tx.id,
       action: body.action,
       status: newStatus,
+    };
+  });
+
+  // REST API: Merchant Fulfillment Notice Submission -> Capture Execution (Architectural Invariant 1)
+  app.post("/api/v1/fulfillment/submit", async (req, reply) => {
+    const body = req.body as {
+      transactionId?: string;
+      authorizationId?: string;
+      merchantId: string;
+      fulfillmentNotice: {
+        trackingNumber: string;
+        carrier: string;
+        shippedItems: Array<{ sku: string; quantity: number }>;
+        signature?: string;
+      };
+    };
+
+    if (!body || (!body.transactionId && !body.authorizationId)) {
+      reply.status(400);
+      return { error: "Missing transactionId or authorizationId" };
+    }
+
+    let tx: TransactionRow | null = null;
+    if (body.transactionId) {
+      tx = await GatewayRepository.getTransaction(body.transactionId);
+    }
+    if (!tx && body.authorizationId) {
+      const allTxs = await GatewayRepository.listTransactions();
+      tx = allTxs.find((t) => t.paypalAuthId === body.authorizationId) || null;
+    }
+
+    if (!tx) {
+      reply.status(404);
+      return { error: "Transaction not found for fulfillment notice" };
+    }
+
+    if (tx.status !== "AUTHORIZED") {
+      reply.status(400);
+      return {
+        error: `Cannot capture transaction in status '${tx.status}'. Must be 'AUTHORIZED'.`,
+      };
+    }
+
+    const authId = tx.paypalAuthId;
+    if (!authId) {
+      reply.status(400);
+      return { error: "Transaction has no PayPal authorization ID" };
+    }
+
+    // Execute capture via PayPal client under Invariant 1
+    const captureRes = await paypalClient.captureAuthorization(
+      authId,
+      tx.amount,
+      tx.currency,
+    );
+
+    // Record cryptographic capture event in tamper-evident ledger
+    await GatewayRepository.appendLedgerEvent(
+      LEDGER_EVENT_KINDS.PAYPAL_CAPTURED,
+      captureRes.id,
+      {
+        transactionId: tx.id,
+        mandateId: tx.mandateId,
+        orderId: tx.paypalOrderId,
+        authorizationId: authId,
+        captureId: captureRes.id,
+        amount: tx.amount,
+        currency: tx.currency,
+        merchantId: body.merchantId,
+        fulfillmentNotice: body.fulfillmentNotice,
+        timestamp: new Date().toISOString(),
+      },
+    );
+
+    // Update transaction to CAPTURED
+    await GatewayRepository.saveTransaction({
+      id: tx.id,
+      mandateId: tx.mandateId,
+      merchantId: tx.merchantId,
+      amount: tx.amount,
+      currency: tx.currency,
+      verdict: "ALLOW",
+      status: "CAPTURED",
+      paypalOrderId: tx.paypalOrderId ?? undefined,
+      paypalAuthId: authId,
+      paypalCaptureId: captureRes.id,
+    });
+
+    return {
+      status: "CAPTURED",
+      transactionId: tx.id,
+      authorizationId: authId,
+      captureId: captureRes.id,
+      amount: tx.amount,
+      currency: tx.currency,
     };
   });
 

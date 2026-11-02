@@ -113,6 +113,7 @@ export class GatewayRepository {
     status: string;
     paypalOrderId?: string;
     paypalAuthId?: string;
+    paypalCaptureId?: string;
     holdReason?: string;
   }): Promise<void> {
     const db = getDb();
@@ -130,6 +131,7 @@ export class GatewayRepository {
             status: txData.status,
             paypalOrderId: txData.paypalOrderId,
             paypalAuthId: txData.paypalAuthId,
+            paypalCaptureId: txData.paypalCaptureId,
             holdReason: txData.holdReason,
           })
           .onConflictDoUpdate({
@@ -139,6 +141,7 @@ export class GatewayRepository {
               verdict: txData.verdict,
               paypalOrderId: txData.paypalOrderId,
               paypalAuthId: txData.paypalAuthId,
+              paypalCaptureId: txData.paypalCaptureId,
               holdReason: txData.holdReason,
               updatedAt: new Date(),
             },
@@ -166,7 +169,7 @@ export class GatewayRepository {
       status: txData.status,
       paypalOrderId: txData.paypalOrderId ?? null,
       paypalAuthId: txData.paypalAuthId ?? null,
-      paypalCaptureId: null,
+      paypalCaptureId: txData.paypalCaptureId ?? null,
       holdReason: txData.holdReason ?? null,
       createdAt: now,
       updatedAt: now,
