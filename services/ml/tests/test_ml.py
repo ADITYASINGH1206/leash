@@ -161,6 +161,12 @@ def test_isolation_forest_model_internals():
     assert extreme_score >= 80
     assert len(top_reasons) == 3
 
+def test_validate_amount_positive():
+    res = client.post("/risk/score", json={"amount": -10.0})
+    assert res.status_code == 422
+    res_zero = client.post("/risk/score", json={"amount": 0.0})
+    assert res_zero.status_code == 422
+
 def test_injection_clean():
     res = client.post("/injection/detect", json={
         "text": "Precision cut shockproof case with USB-C dust port protector.",

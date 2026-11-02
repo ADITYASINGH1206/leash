@@ -1,6 +1,6 @@
 import re
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from services.ml.models.isolation_forest import RiskAnomalyModel
 
 app = FastAPI(title="Leash ML Service", version="0.1.0")
@@ -15,6 +15,12 @@ class RiskScoreRequest(BaseModel):
     budget_consumed_ratio: float = 0.0
     threshold_proximity: float = 0.0
     recent_failed_attempts: int = 0
+
+    @field_validator("amount")
+    def validate_amount(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("Transaction amount must be greater than zero")
+        return v
 
 class RiskScoreResponse(BaseModel):
     risk_score: int
