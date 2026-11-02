@@ -1,4 +1,15 @@
 import { z } from "zod";
+import { MemoryNonceStore } from "./nonce.js";
+
+export { MemoryNonceStore, type INonceStore } from "./nonce.js";
+
+export const MandateSignatureSchema = z.object({
+  alg: z.literal("ES256"),
+  kid: z.string(),
+  jws: z.string(),
+});
+
+export type MandateSignature = z.infer<typeof MandateSignatureSchema>;
 
 export const MandateConstraintsSchema = z.object({
   currency: z.string().length(3).default("USD"),
@@ -24,13 +35,11 @@ export const IntentMandateSchema = z.object({
   playback: z.string().min(5).max(1000),
   constraints: MandateConstraintsSchema,
   nonce: z.string().min(16),
-  sig: z
-    .object({
-      alg: z.literal("ES256"),
-      kid: z.string(),
-      jws: z.string(),
-    })
-    .optional(),
+  sig: MandateSignatureSchema.optional(),
+});
+
+export const SignedIntentMandateSchema = IntentMandateSchema.extend({
+  sig: MandateSignatureSchema,
 });
 
 export const CartItemSchema = z.object({
@@ -56,35 +65,41 @@ export function calculateCartTotal(
   return ((itemsCents + shippingCents) / 100).toFixed(2);
 }
 
-export const CartMandateSchema = z
-  .object({
-    id: z.string().startsWith("cart_"),
-    merchantId: z.string().startsWith("mer_"),
-    items: z.array(CartItemSchema).min(1),
-    shipping: z
-      .string()
-      .regex(/^\d+(\.\d{2})?$/)
-      .default("0.00"),
-    total: z.string().regex(/^\d+(\.\d{2})?$/),
-    currency: z.string().length(3).default("USD"),
-    expiresAt: z.string().datetime(),
-    sig: z
-      .object({
-        alg: z.literal("ES256"),
-        kid: z.string(),
-        jws: z.string(),
-      })
-      .optional(),
-  })
-  .refine(
-    (cart) => {
-      const expected = calculateCartTotal(cart.items, cart.shipping);
-      return cart.total === expected;
-    },
-    {
-      message: "Cart total must match exact sum of items plus shipping",
-    },
-  );
+const CartMandateBaseSchema = z.object({
+  id: z.string().startsWith("cart_"),
+  merchantId: z.string().startsWith("mer_"),
+  items: z.array(CartItemSchema).min(1),
+  shipping: z
+    .string()
+    .regex(/^\d+(\.\d{2})?$/)
+    .default("0.00"),
+  total: z.string().regex(/^\d+(\.\d{2})?$/),
+  currency: z.string().length(3).default("USD"),
+  expiresAt: z.string().datetime(),
+  sig: MandateSignatureSchema.optional(),
+});
+
+export const CartMandateSchema = CartMandateBaseSchema.refine(
+  (cart) => {
+    const expected = calculateCartTotal(cart.items, cart.shipping);
+    return cart.total === expected;
+  },
+  {
+    message: "Cart total must match exact sum of items plus shipping",
+  },
+);
+
+export const SignedCartMandateSchema = CartMandateBaseSchema.extend({
+  sig: MandateSignatureSchema,
+}).refine(
+  (cart) => {
+    const expected = calculateCartTotal(cart.items, cart.shipping);
+    return cart.total === expected;
+  },
+  {
+    message: "Cart total must match exact sum of items plus shipping",
+  },
+);
 
 export const PaymentRequestSchema = z.object({
   mandateId: z.string().startsWith("mdt_"),
@@ -102,31 +117,25 @@ export const PaymentRequestSchema = z.object({
 });
 
 export type IntentMandate = z.infer<typeof IntentMandateSchema>;
+export type SignedIntentMandate = z.infer<typeof SignedIntentMandateSchema>;
+export type CartItem = z.infer<typeof CartItemSchema>;
 export type CartMandate = z.infer<typeof CartMandateSchema>;
+export type SignedCartMandate = z.infer<typeof SignedCartMandateSchema>;
 export type PaymentRequest = z.infer<typeof PaymentRequestSchema>;
 
 /**
- * In-memory Nonce Store to protect against replay attacks.
+ * Strips the signature object to return the signable payload
  */
-export class NonceStore {
-  private consumed = new Set<string>();
-
-  /**
-   * Consumes a nonce. Returns true if nonce was fresh, false if already consumed.
-   */
-  consume(nonce: string): boolean {
-    if (this.consumed.has(nonce)) {
-      return false;
-    }
-    this.consumed.add(nonce);
-    return true;
-  }
-
-  isConsumed(nonce: string): boolean {
-    return this.consumed.has(nonce);
-  }
-
-  reset(): void {
-    this.consumed.clear();
-  }
+export function extractSignablePayload(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const signable = { ...payload };
+  delete signable.sig;
+  return signable;
 }
+
+/**
+ * Re-export MemoryNonceStore as NonceStore for backwards compatibility
+ */
+export const NonceStore = MemoryNonceStore;
+export type NonceStore = MemoryNonceStore;
