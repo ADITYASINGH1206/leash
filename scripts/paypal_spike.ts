@@ -186,3 +186,4 @@ runSpike().catch((err) => {
   console.error('Fatal error running spike:', err);
   process.exit(1);
 });
+

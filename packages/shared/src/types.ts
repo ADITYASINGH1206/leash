@@ -1,11 +1,10 @@
 export type DecisionVerdict = 'ALLOW' | 'HOLD' | 'BLOCK';
 
 export interface DecisionReason {
-  layer: 'mandate' | 'policy' | 'provenance' | 'intent_judge' | 'risk_anomaly';
+  layer: 'policy' | 'provenance' | 'intent' | 'risk' | 'mandate';
   verdict: DecisionVerdict;
   code: string;
   message: string;
-  metadata?: Record<string, unknown>;
 }
 
 export interface DecisionTrace {
@@ -21,17 +20,25 @@ export interface DecisionTrace {
 
 export type LedgerEventKind =
   | 'MANDATE_CREATED'
+  | 'MANDATE_SIGNED'
   | 'PAYMENT_REQUESTED'
+  | 'LAYER_POLICY_EVALUATED'
+  | 'LAYER_PROVENANCE_SCANNED'
+  | 'LAYER_INTENT_EVALUATED'
+  | 'LAYER_RISK_SCORED'
   | 'DECISION_EVALUATED'
+  | 'DECISION_VERDICT'
+  | 'USER_APPROVAL'
+  | 'USER_DENIAL'
   | 'PAYMENT_HELD'
-  | 'USER_APPROVED'
-  | 'USER_DENIED'
   | 'PAYPAL_ORDER_CREATED'
+  | 'PAYPAL_AUTH_HELD'
   | 'PAYPAL_AUTHORIZED'
   | 'PAYPAL_CAPTURED'
   | 'PAYPAL_VOIDED'
   | 'PAYPAL_REFUNDED'
-  | 'WEBHOOK_RECEIVED';
+  | 'WEBHOOK_RECEIVED'
+  | (string & {});
 
 export interface LedgerRow<T = unknown> {
   seq: number;
@@ -59,9 +66,4 @@ export interface CartPayload {
   total: string;
   currency: string;
   expiresAt: string;
-  sig?: {
-    alg: string;
-    kid: string;
-    jws: string;
-  };
 }
