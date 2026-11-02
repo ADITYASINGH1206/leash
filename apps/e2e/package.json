@@ -1,0 +1,30 @@
+{
+  "name": "@leash/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-End Automated Regression Suite for Leash Payment Firewall",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "vitest run src/e2e-user-journey.test.ts",
+    "test:playwright": "playwright test",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@leash/buyer-agent": "workspace:*",
+    "@leash/gateway": "workspace:*",
+    "@leash/mandates": "workspace:*",
+    "@leash/paypal": "workspace:*",
+    "@leash/policy": "workspace:*",
+    "@leash/provenance": "workspace:*",
+    "@leash/shared": "workspace:*",
+    "@leash/stores": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^22.10.7",
+    "fastify": "^5.2.1",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

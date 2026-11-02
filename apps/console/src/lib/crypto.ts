@@ -16,8 +16,10 @@ export function canonicalJson(data: unknown): string {
     return '[' + data.map(canonicalJson).join(',') + ']';
   }
   const obj = data as Record<string, unknown>;
-  const sortedKeys = Object.keys(obj).sort();
-  const pairs = sortedKeys.map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`);
+  const validKeys = Object.keys(obj)
+    .filter((k) => obj[k] !== undefined && typeof obj[k] !== 'function' && typeof obj[k] !== 'symbol')
+    .sort();
+  const pairs = validKeys.map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`);
   return '{' + pairs.join(',') + '}';
 }
 

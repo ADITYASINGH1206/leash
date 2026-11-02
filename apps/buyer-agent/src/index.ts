@@ -17,6 +17,10 @@ function getPublicDir(): string {
   return join(process.cwd(), "apps/buyer-agent/src/public");
 }
 
+export * from "./agent/shopper.js";
+export * from "./agent/tools.js";
+export * from "./agent/types.js";
+
 export async function createBuyerAgentServer() {
   const app = Fastify({ logger: false });
   const session = createDefaultSession();
