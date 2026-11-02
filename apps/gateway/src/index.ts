@@ -5,12 +5,10 @@ import { handleRequestPaymentTool, createMcpServer } from "./mcp/index.js";
 import { PaymentRequestSchema } from "@leash/mandates";
 import { GatewayRepository } from "./db/repository.js";
 import { verifyLedgerChain, LEDGER_EVENT_KINDS } from "@leash/shared";
-import { seedInMemoryMandate, getInMemoryMandate } from "./db/budget-mutex.js";
+import { seedInMemoryMandate, getInMemoryMandate, releaseReservedBudget } from "./db/budget-mutex.js";
 import { closeDb } from "./db/connection.js";
 
 export * from "./arbiter/index.js";
-
-export * from './arbiter/index.js';
 
 
 export async function createServer() {
@@ -155,6 +153,10 @@ export async function createServer() {
       body.action === "APPROVE"
         ? LEDGER_EVENT_KINDS.USER_APPROVAL
         : LEDGER_EVENT_KINDS.USER_DENIAL;
+
+    if (body.action === "DENY" && tx.mandateId) {
+      await releaseReservedBudget(tx.mandateId, Number(tx.amount));
+    }
 
     await GatewayRepository.appendLedgerEvent(eventKind, id, {
       transactionId: id,
