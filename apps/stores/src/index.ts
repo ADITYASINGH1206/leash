@@ -5,11 +5,18 @@ export * from "./fulfilment.js";
 export * from "./toolkit.js";
 export * from "./server.js";
 
+import { fileURLToPath } from "node:url";
 import { createStoresServer } from "./server.js";
 
 const PORT = Number(process.env.STORES_PORT) || 3003;
 
-if (process.env.NODE_ENV !== "test") {
+const isDirectRun =
+  Boolean(process.argv[1]) &&
+  (process.argv[1] === fileURLToPath(import.meta.url) ||
+    process.argv[1]?.endsWith("stores/dist/index.js") ||
+    process.argv[1]?.endsWith("stores/src/index.ts"));
+
+if (isDirectRun && process.env.NODE_ENV !== "test") {
   createStoresServer()
     .then((server) => {
       server.listen({ port: PORT, host: "0.0.0.0" }, (err, address) => {
