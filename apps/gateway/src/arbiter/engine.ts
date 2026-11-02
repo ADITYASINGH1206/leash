@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { PaymentRequest, IntentMandate } from "@leash/mandates";
-import { evaluateIntentAlignment, calibrateJudgeVerdict } from "@leash/mandates";
+import {
+  evaluateIntentAlignment,
+  calibrateJudgeVerdict,
+} from "@leash/mandates";
 import { PolicyEngine } from "@leash/policy";
 import { ProvenanceScanner } from "@leash/provenance";
 import {
@@ -318,8 +321,7 @@ export class DecisionArbiter {
       memMandate?.intentText ||
       "Authorized shopping purchase";
     const playback =
-      memMandate?.playback ||
-      `User authorized shopping for ${intentText}`;
+      memMandate?.playback || `User authorized shopping for ${intentText}`;
     const maxTotalStr = dbMandate?.maxAmount
       ? String(dbMandate.maxAmount)
       : memMandate
@@ -371,8 +373,38 @@ export class DecisionArbiter {
     };
 
     const isNovelMerchant = !knownMerchants.includes(req.cart.merchantId);
-    const noveltyScore =
-      options.noveltyScore ?? (isNovelMerchant ? 0.9 : 0.1);
+    const noveltyScore = options.noveltyScore ?? (isNovelMerchant ? 0.9 : 0.1);
+
+    // Layer 4 Risk Feature Engineering
+    const mandateMaxAmount = Number(
+      memMandate?.maxAmount ?? dbMandate?.maxAmount ?? 250,
+    );
+    const mandateSpentAmount = Number(
+      memMandate?.spentAmount ?? dbMandate?.spentAmount ?? 0,
+    );
+    // Layer 0 mutex already reserved totalAmount into mandateSpentAmount
+    const budgetConsumedRatio =
+      mandateSpentAmount / Math.max(mandateMaxAmount, 1);
+
+    const maxTxnVal = constraints.maxPerTxn
+      ? Number(constraints.maxPerTxn)
+      : (options.approvalAbove ?? 80.0);
+    const thresholdProximity =
+      totalAmount < maxTxnVal ? totalAmount / Math.max(maxTxnVal, 1.0) : 0.0;
+
+    const allowedCats = (constraints.categories || []).map((c: string) =>
+      c.toLowerCase(),
+    );
+    const itemsDrifting =
+      allowedCats.length > 0
+        ? req.cart.items.filter(
+            (i) => !allowedCats.includes(i.category.toLowerCase()),
+          )
+        : [];
+    const categoryDrift =
+      allowedCats.length > 0
+        ? itemsDrifting.length / Math.max(req.cart.items.length, 1)
+        : 0;
 
     // Concurrently trigger Layer 2, Layer 3, and Layer 4 with fail-safe wrappers
     const [provSettled, judgeSettled, riskSettled] = await Promise.allSettled([
@@ -402,7 +434,9 @@ export class DecisionArbiter {
             mandate: mandateForJudge,
             cart: req.cart,
             rawRationale: req.rationale,
-            toolCallSummary: req.evidence.map((e) => `CRAWL_EVIDENCE: ${e.url}`),
+            toolCallSummary: req.evidence.map(
+              (e) => `CRAWL_EVIDENCE: ${e.url}`,
+            ),
           },
           {
             llmInvoker: options.llmInvoker,
@@ -427,8 +461,13 @@ export class DecisionArbiter {
         const rStart = Date.now();
         const res = await evaluateRiskLayer({
           amount: totalAmount,
+          historicalMean: options.historicalMean ?? 25.0,
           txnsLastHour,
           noveltyScore,
+          categoryDrift,
+          budgetConsumedRatio,
+          thresholdProximity,
+          recentFailedAttempts: options.recentFailedAttempts ?? 0,
           mlServiceUrl: options.mlServiceUrl,
         });
         const rDuration = Date.now() - rStart;

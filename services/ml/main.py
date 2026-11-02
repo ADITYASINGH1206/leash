@@ -1,6 +1,6 @@
 import re
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from services.ml.models.isolation_forest import RiskAnomalyModel
 
 app = FastAPI(title="Leash ML Service", version="0.1.0")
@@ -8,13 +8,25 @@ risk_model = RiskAnomalyModel()
 
 class RiskScoreRequest(BaseModel):
     amount: float
+    historical_mean: float = 25.0
     txns_last_hour: int = 0
     novelty_score: float = 0.0
+    category_drift: float = 0.0
+    budget_consumed_ratio: float = 0.0
+    threshold_proximity: float = 0.0
+    recent_failed_attempts: int = 0
+
+    @field_validator("amount")
+    def validate_amount(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("Transaction amount must be greater than zero")
+        return v
 
 class RiskScoreResponse(BaseModel):
     risk_score: int
     top_factors: list[str]
     verdict_suggestion: str
+    feature_contributions: dict[str, float] = {}
 
 class InjectionDetectRequest(BaseModel):
     text: str
@@ -28,10 +40,34 @@ class InjectionDetectResponse(BaseModel):
     verdict_suggestion: str
 
 INJECTION_PATTERNS = [
-    ("system_override", re.compile(r"(?:important\s+)?(?:system|admin)\s+override|ignore\s+(?:all\s+|any\s+|prior\s+|previous\s+)?(?:user\s+)?(?:instructions?|prompts?|rules?)|disregard\s+(?:all\s+|any\s+|prior\s+|previous\s+)?(?:user\s+)?(?:instructions?|prompts?|rules?)|critical\s+instructions?|you\s+must\s+(?:instead|now|immediately)\s+(?:buy|purchase|order)", re.I)),
-    ("budget_override", re.compile(r"(?:disregard|ignore|bypass|override)\s+budget|no\s+budget\s+limit|unlimited\s+spending", re.I)),
-    ("purchase_redirection", re.compile(r"(?:buy|purchase|order)\s+(?:five|ten|\d+\s+|a\s+|some\s+)?([^.,;!]+?)(?:\s+instead|\s+immediately|\s+now|\.|$)|gift\s*cards?|crypto(?:currency)?|bitcoin|luxury\s*items?", re.I)),
-    ("data_exfiltration", re.compile(r"(?:send|exfiltrate|transmit|post)\b.*?\b(?:secrets?|keys?|tokens?|credentials?)|(?:curl|fetch|webhook)\b.*?https?://", re.I)),
+    (
+        "system_override",
+        re.compile(
+            r"(?:important\s+)?(?:system|admin)\s+override|ignore\s+(?:all\s+|any\s+|prior\s+|previous\s+)?(?:user\s+)?(?:instructions?|prompts?|rules?)|disregard\s+(?:all\s+|any\s+|prior\s+|previous\s+)?(?:user\s+)?(?:instructions?|prompts?|rules?)|critical\s+instructions?|you\s+must\s+(?:instead|now|immediately)\s+(?:buy|purchase|order)",
+            re.I,
+        ),
+    ),
+    (
+        "budget_override",
+        re.compile(
+            r"(?:disregard|ignore|bypass|override)\s+budget|no\s+budget\s+limit|unlimited\s+spending",
+            re.I,
+        ),
+    ),
+    (
+        "purchase_redirection",
+        re.compile(
+            r"(?:buy|purchase|order)\s+(?:five|ten|\d+\s+|a\s+|some\s+)?([^.,;!]+?)(?:\s+instead|\s+immediately|\s+now|\.|$)|gift\s*cards?|crypto(?:currency)?|bitcoin|luxury\s*items?",
+            re.I,
+        ),
+    ),
+    (
+        "data_exfiltration",
+        re.compile(
+            r"(?:send|exfiltrate|transmit|post)\b.*?\b(?:secrets?|keys?|tokens?|credentials?)|(?:curl|fetch|webhook)\b.*?https?://",
+            re.I,
+        ),
+    ),
 ]
 
 @app.get("/health")
@@ -40,7 +76,17 @@ def health():
 
 @app.post("/risk/score", response_model=RiskScoreResponse)
 def evaluate_risk(req: RiskScoreRequest):
-    score, reasons = risk_model.score_transaction(req.amount, req.txns_last_hour, req.novelty_score)
+    score, reasons, contributions = risk_model.score_transaction(
+        amount=req.amount,
+        txns_last_hour=req.txns_last_hour,
+        novelty_score=req.novelty_score,
+        historical_mean=req.historical_mean,
+        category_drift=req.category_drift,
+        budget_consumed_ratio=req.budget_consumed_ratio,
+        threshold_proximity=req.threshold_proximity,
+        recent_failed_attempts=req.recent_failed_attempts,
+    )
+
     verdict = "ALLOW"
     if score > 70:
         verdict = "BLOCK"
@@ -50,7 +96,8 @@ def evaluate_risk(req: RiskScoreRequest):
     return RiskScoreResponse(
         risk_score=score,
         top_factors=reasons,
-        verdict_suggestion=verdict
+        verdict_suggestion=verdict,
+        feature_contributions=contributions,
     )
 
 @app.post("/injection/detect", response_model=InjectionDetectResponse)
@@ -66,7 +113,7 @@ def detect_prompt_injection(req: InjectionDetectRequest):
             confidence=0.0,
             categories=[],
             matched_cart_items=[],
-            verdict_suggestion="ALLOW"
+            verdict_suggestion="ALLOW",
         )
 
     # Check cart items against injection text
@@ -86,5 +133,5 @@ def detect_prompt_injection(req: InjectionDetectRequest):
         confidence=0.92,
         categories=matched_categories,
         matched_cart_items=matched_items,
-        verdict_suggestion=verdict
+        verdict_suggestion=verdict,
     )

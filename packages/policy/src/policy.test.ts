@@ -359,5 +359,26 @@ describe("Issue #9: Layer 1 Policy Engine with CEL Rules (@leash/policy)", () =>
         "Simulated unexpected failure",
       );
     });
+
+    it("throws CelError on non-numeric relational comparisons and fails closed to HOLD", () => {
+      const cel = compileCel("cart.total > 'not_a_number'");
+      expect(() => cel({ cart: { total: 100 } })).toThrowError(CelError);
+
+      const invalidComparisonRule: CelRuleDefinition = {
+        id: "invalid-comparison",
+        description: "Rule comparing number to invalid string",
+        action: "ALLOW",
+        expression: "cart.total > 'not_a_number'",
+      };
+
+      const engine = new PolicyEngine([invalidComparisonRule]);
+      const res = engine.evaluate(createCleanContext());
+
+      expect(res.verdict).toBe("HOLD");
+      expect(res.triggeredRules[0]?.id).toBe("invalid-comparison-error");
+      expect(res.triggeredRules[0]?.description).toContain(
+        "requires numeric operands",
+      );
+    });
   });
 });

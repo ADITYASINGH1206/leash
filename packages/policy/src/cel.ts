@@ -498,13 +498,29 @@ export function evaluateCelAst(
         case "!=":
           return left !== right;
         case "<":
-          return Number(left) < Number(right);
         case "<=":
-          return Number(left) <= Number(right);
         case ">":
-          return Number(left) > Number(right);
-        case ">=":
-          return Number(left) >= Number(right);
+        case ">=": {
+          if (
+            left === null ||
+            left === undefined ||
+            right === null ||
+            right === undefined
+          ) {
+            return false;
+          }
+          const numLeft = Number(left);
+          const numRight = Number(right);
+          if (Number.isNaN(numLeft) || Number.isNaN(numRight)) {
+            throw new CelError(
+              `Relational comparison '${node.operator}' requires numeric operands, received left=${typeof left} (${String(left)}) and right=${typeof right} (${String(right)})`,
+            );
+          }
+          if (node.operator === "<") return numLeft < numRight;
+          if (node.operator === "<=") return numLeft <= numRight;
+          if (node.operator === ">") return numLeft > numRight;
+          return numLeft >= numRight;
+        }
         case "in": {
           if (Array.isArray(right)) {
             // Case-insensitive comparison if left is string
