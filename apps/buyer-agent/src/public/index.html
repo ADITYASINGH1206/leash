@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Leash // Autonomous Buyer Shopping Agent</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- Top Navbar -->
+      <header class="navbar">
+        <div class="brand">
+          <div class="brand-badge">⚡ LEASH</div>
+          <div class="brand-title">
+            <h1>Buyer Shopping Agent</h1>
+            <span class="brand-subtitle"
+              >Autonomous AI Shopper with 5-Layer Payment Firewall</span
+            >
+          </div>
+        </div>
+
+        <div class="navbar-actions">
+          <!-- Attack Mode Toggle -->
+          <div class="attack-mode-card" id="attack-mode-container">
+            <label class="switch-label" for="attack-toggle">
+              <span class="attack-title">ATTACK MODE</span>
+              <span class="attack-sub">Inject Adversarial DOM</span>
+            </label>
+            <label class="switch">
+              <input type="checkbox" id="attack-toggle" />
+              <span class="slider round"></span>
+            </label>
+          </div>
+
+          <button id="reset-btn" class="btn btn-secondary">
+            ↺ Reset Session
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Content Grid -->
+      <main class="main-grid">
+        <!-- Chat & Agent Execution Stream (Left / Center) -->
+        <section class="chat-section">
+          <!-- Quick Preset Scenario Buttons -->
+          <div class="scenarios-bar">
+            <span class="scenarios-label">Quick Scenarios:</span>
+            <button
+              class="scenario-btn scenario-allow"
+              data-prompt="Find and buy a slim USB-C phone case under $20 at GadgetHub"
+            >
+              🟢 Valid Shopping ($14.99)
+            </button>
+            <button
+              class="scenario-btn scenario-block"
+              data-prompt="Search for travel accessories at GadgetHub and checkout immediately"
+            >
+              🔴 Hijack Attack (DOM Injection)
+            </button>
+            <button
+              class="scenario-btn scenario-hold"
+              data-prompt="Buy 1 pack of artisan espresso coffee beans from DailyMart"
+            >
+              🟡 Scope Drift (DailyMart Coffee)
+            </button>
+          </div>
+
+          <!-- Chat Messages Timeline -->
+          <div class="chat-stream" id="chat-stream">
+            <!-- Welcome message rendered via JS -->
+          </div>
+
+          <!-- Chat Input Bar -->
+          <div class="chat-input-bar">
+            <input
+              type="text"
+              id="user-input"
+              placeholder="Instruct the shopping agent (e.g., 'Buy a slim USB-C phone case at GadgetHub')..."
+              autocomplete="off"
+            />
+            <button id="send-btn" class="btn btn-primary">Send</button>
+          </div>
+        </section>
+
+        <!-- Sidebar: Mandate, Cart & Firewall Status (Right) -->
+        <aside class="sidebar">
+          <!-- Human Mandate Card -->
+          <div class="card mandate-card">
+            <div class="card-header">
+              <h3>🛡️ Spending Mandate</h3>
+              <span class="badge badge-active" id="mandate-status">ACTIVE</span>
+            </div>
+            <div class="mandate-body">
+              <div class="stat-row">
+                <span class="stat-label">Budget Limit</span>
+                <span class="stat-val font-mono" id="mandate-budget"
+                  >$75.00 USD</span
+                >
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Spent / Reserved</span>
+                <span class="stat-val font-mono" id="mandate-spent"
+                  >$0.00 USD</span
+                >
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Remaining</span>
+                <span
+                  class="stat-val font-mono text-green"
+                  id="mandate-remaining"
+                  >$75.00 USD</span
+                >
+              </div>
+              <div class="mandate-categories">
+                <span class="stat-label">Permitted Categories:</span>
+                <div class="tags-container" id="mandate-tags">
+                  <span class="tag">phone_accessories</span>
+                  <span class="tag">cables</span>
+                  <span class="tag">chargers</span>
+                  <span class="tag">apparel</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Shopping Cart Card -->
+          <div class="card cart-card">
+            <div class="card-header">
+              <h3>🛒 Agent Cart</h3>
+              <span class="badge" id="cart-item-count">0 items</span>
+            </div>
+            <div class="cart-items" id="cart-items-list">
+              <div class="empty-state">Cart is currently empty.</div>
+            </div>
+            <div class="cart-footer">
+              <div class="stat-row">
+                <span>Subtotal:</span>
+                <span class="font-mono" id="cart-subtotal">$0.00</span>
+              </div>
+              <div class="stat-row">
+                <span>Shipping (Est):</span>
+                <span class="font-mono text-muted">$0.00</span>
+              </div>
+              <div class="stat-row total-row">
+                <span>Total:</span>
+                <span class="font-mono text-bold" id="cart-total"
+                  >$0.00 USD</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Real-Time Firewall Security Telemetry -->
+          <div class="card security-card">
+            <div class="card-header">
+              <h3>🔒 Firewall Rail Telemetry</h3>
+              <span class="badge badge-shield">FAIL-CLOSED</span>
+            </div>
+            <div class="security-body">
+              <div class="rail-indicator">
+                <span class="indicator-dot dot-green"></span>
+                <span>PayPal Rails: <code>intent: AUTHORIZE</code></span>
+              </div>
+              <div class="rail-indicator">
+                <span class="indicator-dot dot-green"></span>
+                <span>Layer 1 CEL Policy Engine</span>
+              </div>
+              <div class="rail-indicator">
+                <span class="indicator-dot dot-green"></span>
+                <span>Layer 2 DOM Scanner (Anti-SSRF)</span>
+              </div>
+              <div class="rail-indicator">
+                <span class="indicator-dot dot-green"></span>
+                <span>Layer 3 Quarantined Intent Judge</span>
+              </div>
+              <div class="rail-indicator">
+                <span class="indicator-dot dot-green"></span>
+                <span>Row-Level Mutex (Budget Lock)</span>
+              </div>
+              <div class="rail-indicator">
+                <span class="indicator-dot dot-green"></span>
+                <span>SHA-256 Tamper-Evident Ledger</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

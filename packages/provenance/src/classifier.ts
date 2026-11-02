@@ -2,8 +2,8 @@ import type {
   PromptInjectionCategory,
   PromptInjectionFinding,
   HiddenTextExtraction,
-} from './types.js';
-import type { CartMandate } from '@leash/mandates';
+} from "./types.js";
+import type { CartMandate } from "@leash/mandates";
 
 interface InjectionRule {
   pattern: RegExp;
@@ -16,76 +16,83 @@ const INJECTION_RULES: InjectionRule[] = [
   // 1. System Overrides & Instruction Hijacking
   {
     pattern: /(?:important\s+)?(?:system|admin)\s+override/i,
-    category: 'system_override',
+    category: "system_override",
     confidence: 0.95,
   },
   {
-    pattern: /ignore\s+(?:all\s+|any\s+|prior\s+|previous\s+)?(?:user\s+)?(?:instructions?|prompts?|rules?|commands?)/i,
-    category: 'system_override',
+    pattern:
+      /ignore\s+(?:all\s+|any\s+|prior\s+|previous\s+)?(?:user\s+)?(?:instructions?|prompts?|rules?|commands?)/i,
+    category: "system_override",
     confidence: 0.98,
   },
   {
-    pattern: /disregard\s+(?:all\s+|any\s+|prior\s+|previous\s+)?(?:user\s+)?(?:instructions?|prompts?|rules?|commands?)/i,
-    category: 'system_override',
+    pattern:
+      /disregard\s+(?:all\s+|any\s+|prior\s+|previous\s+)?(?:user\s+)?(?:instructions?|prompts?|rules?|commands?)/i,
+    category: "system_override",
     confidence: 0.98,
   },
   {
     pattern: /critical\s+instructions?(?:\s+for\s+(?:buyer\s+)?agent|\s*:)/i,
-    category: 'system_override',
+    category: "system_override",
     confidence: 0.95,
   },
   {
-    pattern: /you\s+must\s+(?:instead|now|immediately)\s+(?:buy|purchase|order|add|execute)/i,
-    category: 'system_override',
+    pattern:
+      /you\s+must\s+(?:instead|now|immediately)\s+(?:buy|purchase|order|add|execute)/i,
+    category: "system_override",
     confidence: 0.9,
   },
   {
-    pattern: /(?:new\s+instructions?|system\s+prompt\s+injection|jailbreak|developer\s+mode)\b/i,
-    category: 'jailbreak',
+    pattern:
+      /(?:new\s+instructions?|system\s+prompt\s+injection|jailbreak|developer\s+mode)\b/i,
+    category: "jailbreak",
     confidence: 0.9,
   },
 
   // 2. Budget Overrides
   {
     pattern: /(?:disregard|ignore|bypass|override)\s+budget(?:\s+limits?)?/i,
-    category: 'budget_override',
+    category: "budget_override",
     confidence: 0.95,
   },
   {
     pattern: /(?:no\s+budget\s+limit|unlimited\s+spending\s+authority)/i,
-    category: 'budget_override',
+    category: "budget_override",
     confidence: 0.9,
   },
 
   // 3. Purchase Redirection & Target Extraction
   {
-    pattern: /(?:buy|purchase|order)\s+(?:five|ten|\d+\s+|a\s+|some\s+)?([^.,;!]+?)(?:\s+instead|\s+immediately|\s+now|\.|$)/i,
-    category: 'purchase_redirection',
+    pattern:
+      /(?:buy|purchase|order)\s+(?:five|ten|\d+\s+|a\s+|some\s+)?([^.,;!]+?)(?:\s+instead|\s+immediately|\s+now|\.|$)/i,
+    category: "purchase_redirection",
     confidence: 0.92,
     extractTarget: (m) => m[1]?.trim(),
   },
   {
     pattern: /add\s+([^.,;!]+?)\s+to\s+cart/i,
-    category: 'purchase_redirection',
+    category: "purchase_redirection",
     confidence: 0.9,
     extractTarget: (m) => m[1]?.trim(),
   },
   {
-    pattern: /(?:gift\s*cards?|visa\s*gift\s*card|amazon\s*gift\s*card|crypto(?:currency)?|bitcoin|ethereum)/i,
-    category: 'purchase_redirection',
+    pattern:
+      /(?:gift\s*cards?|visa\s*gift\s*card|amazon\s*gift\s*card|crypto(?:currency)?|bitcoin|ethereum)/i,
+    category: "purchase_redirection",
     confidence: 0.85,
     extractTarget: (m) => m[0]?.trim(),
   },
 
   // 4. Data Exfiltration
   {
-    pattern: /(?:send|exfiltrate|transmit|post)\b.*?\b(?:secrets?|keys?|tokens?|credentials?|passwords?)\b/i,
-    category: 'data_exfiltration',
+    pattern:
+      /(?:send|exfiltrate|transmit|post)\b.*?\b(?:secrets?|keys?|tokens?|credentials?|passwords?)\b/i,
+    category: "data_exfiltration",
     confidence: 0.98,
   },
   {
     pattern: /\b(?:curl|fetch|webhook)\b.*?https?:\/\//i,
-    category: 'data_exfiltration',
+    category: "data_exfiltration",
     confidence: 0.8,
   },
 ];
@@ -94,20 +101,26 @@ const INJECTION_RULES: InjectionRule[] = [
  * Normalizes text for target matching
  */
 function normalizeText(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**
  * Classifies whether a text string contains prompt injection instructions
  */
-export function classifyTextForInjection(text: string): PromptInjectionFinding | null {
+export function classifyTextForInjection(
+  text: string,
+): PromptInjectionFinding | null {
   if (!text || text.trim().length === 0) return null;
 
   const matchedCategories = new Set<PromptInjectionCategory>();
   const targetPhrasesSet = new Set<string>();
   let highestConfidence = 0;
-  let primaryCategory: PromptInjectionCategory = 'system_override';
-  let matchedPattern = '';
+  let primaryCategory: PromptInjectionCategory = "system_override";
+  let matchedPattern = "";
 
   for (const rule of INJECTION_RULES) {
     const match = rule.pattern.exec(text);
@@ -129,7 +142,14 @@ export function classifyTextForInjection(text: string): PromptInjectionFinding |
   }
 
   // Also extract common illicit target keywords mentioned anywhere in the injected text
-  const targetKeywords = ['gift card', 'gift cards', 'crypto', 'bitcoin', 'luxury item', 'luxury items'];
+  const targetKeywords = [
+    "gift card",
+    "gift cards",
+    "crypto",
+    "bitcoin",
+    "luxury item",
+    "luxury items",
+  ];
   const lowerText = text.toLowerCase();
   for (const kw of targetKeywords) {
     if (lowerText.includes(kw)) {
@@ -156,7 +176,9 @@ export function classifyTextForInjection(text: string): PromptInjectionFinding |
 /**
  * Scans a list of hidden text extractions for prompt injections
  */
-export function classifyExtractions(extractions: HiddenTextExtraction[]): PromptInjectionFinding[] {
+export function classifyExtractions(
+  extractions: HiddenTextExtraction[],
+): PromptInjectionFinding[] {
   const findings: PromptInjectionFinding[] = [];
 
   for (const extraction of extractions) {
@@ -177,7 +199,7 @@ export function classifyExtractions(extractions: HiddenTextExtraction[]): Prompt
  */
 export function matchInjectionsAgainstCart(
   injections: PromptInjectionFinding[],
-  cart: CartMandate
+  cart: CartMandate,
 ): string[] {
   const matchedItems: string[] = [];
   if (injections.length === 0 || !cart.items || cart.items.length === 0) {
@@ -186,16 +208,20 @@ export function matchInjectionsAgainstCart(
 
   for (const item of cart.items) {
     const itemNameNorm = normalizeText(item.name);
-    const itemCatNorm = normalizeText(item.category || '');
-    const itemSkuNorm = normalizeText(item.sku || '');
+    const itemCatNorm = normalizeText(item.category || "");
+    const itemSkuNorm = normalizeText(item.sku || "");
 
     for (const injection of injections) {
       const payloadNorm = normalizeText(injection.extractedPayload);
 
       // Support matching short product names / SKUs (e.g. >= 2 chars like USB, SSD)
-      const nameInPayload = itemNameNorm.length >= 2 && payloadNorm.includes(itemNameNorm);
-      const skuInPayload = itemSkuNorm.length >= 2 && payloadNorm.includes(itemSkuNorm);
-      const categoryInPayload = itemCatNorm.length >= 2 && payloadNorm.includes(itemCatNorm.replace(/_/g, ' '));
+      const nameInPayload =
+        itemNameNorm.length >= 2 && payloadNorm.includes(itemNameNorm);
+      const skuInPayload =
+        itemSkuNorm.length >= 2 && payloadNorm.includes(itemSkuNorm);
+      const categoryInPayload =
+        itemCatNorm.length >= 2 &&
+        payloadNorm.includes(itemCatNorm.replace(/_/g, " "));
 
       // Check target phrases against item name or category
       const targetMatches = injection.targetPhrases.some((target) => {
@@ -205,7 +231,7 @@ export function matchInjectionsAgainstCart(
           itemNameNorm.includes(t) ||
           t.includes(itemNameNorm) ||
           itemCatNorm.includes(t) ||
-          t.includes(itemCatNorm.replace(/_/g, ' '))
+          t.includes(itemCatNorm.replace(/_/g, " "))
         );
       });
 
@@ -227,7 +253,7 @@ interface MLInjectionResponse {
   confidence?: number;
   categories?: string[];
   matched_cart_items?: string[];
-  verdict_suggestion?: 'ALLOW' | 'HOLD' | 'BLOCK';
+  verdict_suggestion?: "ALLOW" | "HOLD" | "BLOCK";
 }
 
 /**
@@ -242,13 +268,13 @@ interface MLInjectionResponse {
 export async function queryMlClassifier(
   text: string,
   cartItemNames: string[],
-  mlServiceUrl: string
+  mlServiceUrl: string,
 ): Promise<PromptInjectionFinding | null> {
   try {
-    const url = `${mlServiceUrl.replace(/\/$/, '')}/injection/detect`;
+    const url = `${mlServiceUrl.replace(/\/$/, "")}/injection/detect`;
     const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text,
         cart_items: cartItemNames,
@@ -262,8 +288,10 @@ export async function queryMlClassifier(
       return {
         isInjection: true,
         confidence: data.confidence ?? 0.85,
-        category: (data.categories?.[0] as PromptInjectionCategory) || 'system_override',
-        matchedPattern: 'ML_INJECTION_CLASSIFIER_TRIGGERED',
+        category:
+          (data.categories?.[0] as PromptInjectionCategory) ||
+          "system_override",
+        matchedPattern: "ML_INJECTION_CLASSIFIER_TRIGGERED",
         extractedPayload: text.slice(0, 500),
         targetPhrases: data.matched_cart_items || [],
       };
