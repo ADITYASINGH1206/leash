@@ -213,3 +213,4 @@ export function getFallbackLedgerFixture(): LedgerEventRow[] {
     },
   ];
 }
+

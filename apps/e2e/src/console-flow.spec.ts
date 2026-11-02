@@ -140,3 +140,4 @@ test.describe("Leash Console UI Walkthrough (Playwright E2E)", () => {
     ).toBeVisible({ timeout: 5000 });
   });
 });
+
