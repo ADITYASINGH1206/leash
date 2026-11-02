@@ -14,6 +14,7 @@
     "@leash/mandates": "workspace:*",
     "@leash/paypal": "workspace:*",
     "@leash/policy": "workspace:*",
+    "@leash/provenance": "workspace:*",
     "@leash/shared": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "drizzle-orm": "^0.45.4",

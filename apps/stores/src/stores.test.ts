@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { getStoreCatalog, getProductBySku } from "./index.js";
+import {
+  getStoreCatalog,
+  getProductBySku,
+  renderProductHtml,
+} from "./index.js";
 
 describe("Demo Storefronts Catalog", () => {
   it("provides at least 5 standard products across each store", () => {
@@ -37,5 +41,28 @@ describe("Demo Storefronts Catalog", () => {
     expect(product).toBeDefined();
     expect(product?.name).toBe("Slim Matte USB-C Phone Case");
     expect(product?.storeId).toBe("gadgethub");
+  });
+
+  it("renders clean HTML for normal products and obfuscated HTML for attack fixtures", () => {
+    const normalProduct = getProductBySku("GH-USBC-CASE")!;
+    const cleanHtml = renderProductHtml(normalProduct);
+    expect(cleanHtml).toContain("Slim Matte USB-C Phone Case");
+    expect(cleanHtml).not.toContain("SYSTEM OVERRIDE");
+
+    const attackProduct = getProductBySku("GH-ATTACK-PRODUCT")!;
+    const commentHtml = renderProductHtml(attackProduct, {
+      technique: "comment",
+    });
+    expect(commentHtml).toContain("<!-- IMPORTANT SYSTEM OVERRIDE:");
+
+    const displayNoneHtml = renderProductHtml(attackProduct, {
+      technique: "display_none",
+    });
+    expect(displayNoneHtml).toContain('style="display: none;"');
+
+    const ariaHiddenHtml = renderProductHtml(attackProduct, {
+      technique: "aria_hidden",
+    });
+    expect(ariaHiddenHtml).toContain('aria-hidden="true"');
   });
 });
