@@ -1,10 +1,10 @@
 services:
-  # Leash Gateway (MCP & REST API)
+  # Leash Gateway (MCP Server & Decision Arbiter REST API)
   - type: web
     name: leash-gateway
     env: node
     plan: standard
-    buildCommand: pnpm install && pnpm build --filter=@leash/gateway...
+    buildCommand: pnpm install --ignore-scripts && pnpm build
     startCommand: node apps/gateway/dist/index.js
     envVars:
       - key: NODE_ENV
@@ -29,12 +29,12 @@ services:
           name: leash-ml
           property: host
 
-  # Next.js Console & Approvals PWA
+  # Next.js 15 Console with AG Grid Immutable Ledger
   - type: web
     name: leash-console
     env: node
     plan: standard
-    buildCommand: pnpm install && pnpm build --filter=@leash/console...
+    buildCommand: pnpm install --ignore-scripts && pnpm build
     startCommand: pnpm --filter=@leash/console start
     envVars:
       - key: NODE_ENV
@@ -45,26 +45,35 @@ services:
           name: leash-gateway
           property: host
 
-  # Demo Stores & Merchant Agents
+  # Autonomous Buyer Shopping Agent with Live Attack Mode
   - type: web
-    name: leash-stores
+    name: leash-buyer-agent
     env: node
     plan: standard
-    buildCommand: pnpm install && pnpm build --filter=@leash/stores...
-    startCommand: pnpm --filter=@leash/stores start
+    buildCommand: pnpm install --ignore-scripts && pnpm build
+    startCommand: node apps/buyer-agent/dist/index.js
     envVars:
       - key: NODE_ENV
         value: production
+      - key: GATEWAY_URL
+        fromService:
+          type: web
+          name: leash-gateway
+          property: host
 
-  # Python ML Service (Isolation Forest & Injection Classifier)
+  # Python ML Anomaly Service (Layer 4 Isolation Forest & Classifier)
   - type: web
     name: leash-ml
     env: python
     plan: standard
     buildCommand: pip install -r services/ml/requirements.txt
     startCommand: uvicorn services.ml.main:app --host 0.0.0.0 --port 8000
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
 
 databases:
+  # Managed PostgreSQL for Tamper-Evident Ledger & Mutex Budget Locking
   - name: leash-db
     plan: standard
     postgresMajorVersion: 16
