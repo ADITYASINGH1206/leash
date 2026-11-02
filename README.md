@@ -5,8 +5,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Hackathon](https://img.shields.io/badge/PayPal-AI%20Hackathon%202026-003087?logo=paypal)](https://paypalaihackathon.devpost.com/)
 [![Protocol](https://img.shields.io/badge/Mandates-AP2%20Compatible-brightgreen)](https://eco.com/support/en/articles/15192002)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
 
 **Leash** is an institutional-grade payment firewall sitting between autonomous AI shopping agents and **PayPal**. Every agent payment must trace back to a cryptographically signed human mandate. Before money is authorized, payments pass a 5-layer deterministic and AI inspection engine. Crucially, Leash enforces an **authorize-then-capture** lifecycle where money only moves upon signed merchant delivery, and auto-voids after 72 hours if unfulfilled.
+
+> ⚖️ **For Hackathon Judges:** Evaluate the entire firewall live in under 30 seconds with **zero configuration or credentials** using our hosted **Judge Mode**. See the [**Judge Quickstart Guide (docs/quickstart.md)**](docs/quickstart.md).
 
 ---
 

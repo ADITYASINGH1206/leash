@@ -18,6 +18,7 @@ import { LiveDecisionFeed } from '../components/LiveDecisionFeed';
 import { MandateStudio } from '../components/MandateStudio';
 import { BenchmarkDashboard } from '../components/BenchmarkDashboard';
 import { LedgerCopilot } from '../components/LedgerCopilot';
+import { JudgeModeBanner } from '../components/JudgeModeBanner';
 import {
   fetchLedgerEvents,
   fetchGatewayHealth,
@@ -164,6 +165,8 @@ export default function ConsolePage() {
 
       {/* Main Content Viewport */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <JudgeModeBanner onWalkthroughComplete={loadData} />
+
         {activeTab === 'ledger' && (
           <div className="space-y-4">
             <div className="bg-surface border border-border p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3">
