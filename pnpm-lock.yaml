@@ -194,6 +194,9 @@ importers:
       '@leash/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@leash/stores':
+        specifier: workspace:*
+        version: link:../stores
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.2
         version: 1.32.2(zod@3.25.76)

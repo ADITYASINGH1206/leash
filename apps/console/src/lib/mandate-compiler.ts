@@ -94,3 +94,43 @@ export function compileMandate(text: string, now = new Date()): CompiledMandate 
 
   return { maxAmount, maxPerTxn, categories, itemTerms, days, validUntil: validUntil.toISOString(), playback, warnings };
 }
+
+/**
+ * Compiles a mandate via AI (Gemini 2.5 Flash on the gateway) with seamless rule fallback.
+ */
+export async function compileMandateAsync(
+  text: string,
+  now = new Date(),
+): Promise<CompiledMandate> {
+  const gatewayUrl =
+    typeof process !== "undefined"
+      ? process.env?.NEXT_PUBLIC_GATEWAY_URL || "http://localhost:4000"
+      : "http://localhost:4000";
+
+  try {
+    const res = await fetch(`${gatewayUrl}/api/v1/mandates/compile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: text }),
+    });
+    if (res.ok) {
+      const compiled = (await res.json()) as any;
+      return {
+        maxAmount: Number(compiled.maxAmount) || 50,
+        maxPerTxn: Number(compiled.maxPerTxn) || 25,
+        categories: Array.isArray(compiled.categories) ? compiled.categories : [],
+        itemTerms: Array.isArray(compiled.itemTerms) ? compiled.itemTerms : [],
+        days: Number(compiled.days) || 7,
+        validUntil:
+          compiled.validUntil ||
+          new Date(now.getTime() + 7 * 86400_000).toISOString(),
+        playback: compiled.playback || "Compiled spending mandate",
+        warnings: Array.isArray(compiled.warnings) ? compiled.warnings : [],
+      };
+    }
+  } catch {
+    // offline / fallback
+  }
+
+  return compileMandate(text, now);
+}

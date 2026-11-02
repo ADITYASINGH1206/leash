@@ -15,6 +15,7 @@ import {
 import { PolicyEngine } from "@leash/policy";
 import { ProvenanceScanner } from "@leash/provenance";
 import { PayPalClient } from "@leash/paypal";
+import { getMerchantByMerchantId } from "@leash/stores";
 import { getInMemoryMandate, seedInMemoryMandate } from "../db/budget-mutex.js";
 import { GatewayRepository } from "../db/repository.js";
 import { DecisionArbiter, type ArbiterOptions } from "../arbiter/index.js";
@@ -96,9 +97,12 @@ export async function handleRequestPaymentTool(
         process.env.PAYPAL_VAULT_ID ||
         (mandate ? `vault_${mandate.userId}` : "vault_sandbox_token");
       const idempotencyKey = randomUUID();
+      const merchant = await getMerchantByMerchantId(req.cart.merchantId);
+      const merchantPayeeEmail = merchant?.payeeEmail || `${req.cart.merchantId}@sandbox.paypal.com`;
       const paypalOrder = await paypalClient.createAuthorizeOrder({
         vaultId,
-        merchantPayeeEmail: `${req.cart.merchantId}@sandbox.paypal.com`,
+        merchantPayeeEmail,
+        merchantPayeeId: merchant?.payeeMerchantId,
         amount: {
           currency: req.cart.currency,
           total: req.cart.total,

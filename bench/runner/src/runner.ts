@@ -312,6 +312,77 @@ export function evaluateScenarioPipeline(
 }
 
 /**
+ * Evaluates a scenario directly through a live DecisionArbiter instance
+ */
+export async function evaluateScenarioWithArbiter(
+  scenario: BenchmarkScenario,
+  arbiter?: { evaluate: (req: any, opts?: any) => Promise<any> },
+): Promise<{
+  verdict: "ALLOW" | "HOLD" | "BLOCK";
+  layers: Record<string, string>;
+  holdReason?: string;
+  latencyMs: number;
+}> {
+  const start = performance.now();
+  if (!arbiter) {
+    const res = evaluateScenarioPipeline(scenario);
+    return { ...res, latencyMs: performance.now() - start };
+  }
+
+  try {
+    const decision = await arbiter.evaluate({
+      mandateId: scenario.mandate.mandate_id || "bench_mandate",
+      cart: {
+        id: `cart_${scenario.id}`,
+        merchantId: scenario.cart.merchant_id,
+        items: scenario.cart.items.map((i) => ({
+          sku: i.sku || `SKU_${i.name.replace(/\s+/g, "_")}`,
+          name: i.name,
+          category: i.category,
+          qty: i.qty,
+          unitAmount: i.unit_amount,
+        })),
+        shipping: "0.00",
+        total: scenario.cart.total,
+        currency: scenario.cart.currency || "USD",
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      },
+      rationale: scenario.rationale,
+      evidence: [{ url: scenario.evidence.url }],
+      idempotencyKey: `idem_bench_${scenario.id}`,
+    });
+
+    const layers: Record<string, string> = {
+      layer0Budget: decision.trace?.layers?.budget ? "ALLOW" : "BLOCK",
+      layer1Policy: decision.trace?.layers?.policy?.verdict || "ALLOW",
+      layer2Provenance: decision.trace?.layers?.provenance?.verdict || "ALLOW",
+      layer3Intent: decision.trace?.layers?.intent?.verdict || "ALLOW",
+      layer4Risk: decision.trace?.layers?.risk?.verdict || "ALLOW",
+    };
+
+    return {
+      verdict: decision.status,
+      layers,
+      holdReason: decision.holdReason,
+      latencyMs: performance.now() - start,
+    };
+  } catch (err) {
+    return {
+      verdict: "HOLD",
+      layers: {
+        layer0Budget: "HOLD",
+        layer1Policy: "HOLD",
+        layer2Provenance: "HOLD",
+        layer3Intent: "HOLD",
+        layer4Risk: "HOLD",
+      },
+      holdReason: `Arbiter error: ${err instanceof Error ? err.message : String(err)}`,
+      latencyMs: performance.now() - start,
+    };
+  }
+}
+
+/**
  * Executes a single scenario and measures latency
  */
 export function executeScenario(
