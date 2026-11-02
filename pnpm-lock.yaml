@@ -213,6 +213,12 @@ importers:
       '@leash/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      fastify:
+        specifier: ^5.2.0
+        version: 5.12.7
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
     devDependencies:
       '@types/node':
         specifier: ^22.10.1
