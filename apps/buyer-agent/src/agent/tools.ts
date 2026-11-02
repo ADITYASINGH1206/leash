@@ -224,6 +224,7 @@ export class BuyerAgentTools {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(paymentRequest),
+          signal: AbortSignal.timeout(2400),
         });
         if (res.ok) {
           result = (await res.json()) as MCPPaymentResult;

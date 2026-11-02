@@ -372,7 +372,8 @@ Return ONLY valid JSON.`;
           const data = (await res.json()) as any;
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
-            const parsed = JSON.parse(text);
+            const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
+            const parsed = JSON.parse(cleaned);
             const validUntil = new Date(
               Date.now() + (parsed.days || 7) * 86400_000,
             ).toISOString();
