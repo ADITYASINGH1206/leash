@@ -64,7 +64,12 @@ export async function createBuyerAgentServer() {
       reply.status(500);
       return {
         error: "Agent execution failed",
-        details: err instanceof Error ? err.message : String(err),
+        details:
+          process.env.NODE_ENV === "production"
+            ? "An internal error occurred during agent execution."
+            : err instanceof Error
+              ? err.message
+              : String(err),
       };
     }
   });
