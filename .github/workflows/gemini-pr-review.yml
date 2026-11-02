@@ -1,0 +1,65 @@
+name: Gemini AI PR Reviewer
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to review"
+        required: true
+        default: "1"
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  gemini-review:
+    # Run on PR target events, manual dispatch, or when someone comments '/review' on a PR
+    if: |
+      github.event_name == 'pull_request_target' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && (contains(github.event.comment.body, '/review') || contains(github.event.comment.body, '/gemini')))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code with History
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check for GEMINI_API_KEY
+        id: check_key
+        env:
+          KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::warning ::GEMINI_API_KEY secret is not set in repository settings. Skipping AI review."
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Gemini AI Reviewer
+        if: steps.check_key.outputs.has_key == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title || github.event.issue.title || 'Manual Workflow PR Review' }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login || github.event.issue.user.login || github.actor }}
+          GITHUB_BASE_REF: ${{ github.base_ref || github.event.pull_request.base.ref || 'main' }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 scripts/gemini_pr_reviewer.py
