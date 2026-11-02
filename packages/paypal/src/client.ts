@@ -30,6 +30,11 @@ export class PayPalClient {
       : 'https://api-m.sandbox.paypal.com';
   }
 
+  /** True when no sandbox credentials are configured and ids are generated locally. */
+  isMockMode(): boolean {
+    return Boolean(this.config.mockMode);
+  }
+
   /**
    * Fetches or reuses cached OAuth 2.0 bearer token
    */

@@ -2,13 +2,16 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Leash · Payment Firewall for AI Agents',
+  title: {
+    default: 'Leash: a payment firewall for AI agents',
+    template: '%s | Leash',
+  },
   description:
-    'Institutional-grade payment firewall sitting between autonomous AI shopping agents and PayPal · PayPal AI Hackathon 2026',
+    'Leash sits between AI agents and PayPal. Every payment must trace back to a mandate you signed, pass five checks, and is captured only when the merchant ships.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
     title: 'Leash Approvals',
   },
 };
@@ -16,21 +19,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: '#09090b',
+  themeColor: '#E8EBE3',
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-background text-foreground min-h-screen antialiased selection:bg-emerald-light/20 selection:text-emerald-light blueprint-grid">
-        {children}
-      </body>
+    <html lang="en">
+      <body className="paper-fibre min-h-screen bg-paper text-ink">{children}</body>
     </html>
   );
 }

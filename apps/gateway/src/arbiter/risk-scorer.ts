@@ -161,7 +161,11 @@ export async function evaluateRiskLayer(
   const timeoutId = setTimeout(() => controller.abort(), 400); // 400ms strict timeout for ML call
 
   try {
-    const res = await fetch(`${mlServiceUrl}/risk/score`, {
+    // Render's fromService host/hostport values have no scheme; add one.
+    const baseUrl = /^https?:\/\//.test(mlServiceUrl)
+      ? mlServiceUrl.replace(/\/$/, "")
+      : `http://${mlServiceUrl.replace(/\/$/, "")}`;
+    const res = await fetch(`${baseUrl}/risk/score`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -40,3 +40,4 @@ coverage/
 *.lcov
 .playwright/
 test-results/
+apps/console/tsconfig.tsbuildinfo

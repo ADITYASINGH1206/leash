@@ -1,0 +1,47 @@
+[
+  {
+    "id": "dec_9e0810a9-00d9-4f7e-8047-4421ab0afe14",
+    "mandateId": "mdt_judge_hphyv2le",
+    "merchantId": "mer_gadgethub",
+    "amount": "14.99",
+    "currency": "USD",
+    "verdict": "ALLOW",
+    "status": "CAPTURED",
+    "paypalOrderId": "ord_avsrcchc",
+    "paypalAuthId": "auth_ucu8dbqh",
+    "paypalCaptureId": "cap_oorz4fp1",
+    "holdReason": null,
+    "createdAt": "2026-11-02T20:25:30.008Z",
+    "updatedAt": "2026-11-02T20:25:30.008Z"
+  },
+  {
+    "id": "dec_4655abfb-07d8-4347-9737-fbbce6aa6705",
+    "mandateId": "mdt_judge_hphyv2le",
+    "merchantId": "mer_dailymart",
+    "amount": "16.00",
+    "currency": "USD",
+    "verdict": "ALLOW",
+    "status": "AUTHORIZED",
+    "paypalOrderId": "ord_brrqe6ye",
+    "paypalAuthId": "auth_4mrmwbbz",
+    "paypalCaptureId": null,
+    "holdReason": "Approved in Judge mode with this browser’s device key",
+    "createdAt": "2026-11-02T20:25:30.003Z",
+    "updatedAt": "2026-11-02T20:25:30.003Z"
+  },
+  {
+    "id": "dec_eb7578d3-8c5d-4a9a-896b-ac120bc8938a",
+    "mandateId": "mdt_judge_hphyv2le",
+    "merchantId": "mer_gadgethub",
+    "amount": "100.00",
+    "currency": "USD",
+    "verdict": "BLOCK",
+    "status": "BLOCKED",
+    "paypalOrderId": null,
+    "paypalAuthId": null,
+    "paypalCaptureId": null,
+    "holdReason": "Block all high-risk items like gift cards, crypto, and money transfers; Adversarial prompt injection detected on cited page matching cart item(s): $100 Digital Gift Card; Item \"$100 Digital Gift Card\" has category \"gift_cards\" not in permitted list: [phone_accessories, cables, chargers]. Item \"$100 Digital Gift Card\" belongs to high-risk prohibited category \"gift_cards\".",
+    "createdAt": "2026-11-02T20:25:29.983Z",
+    "updatedAt": "2026-11-02T20:25:29.983Z"
+  }
+]

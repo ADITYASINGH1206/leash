@@ -10,17 +10,19 @@
 
 If you are evaluating this project for the hackathon, you can test the **entire end-to-end security pipeline live** without configuring API keys, PayPal credentials, or environment variables.
 
-### Option A: Hosted Web Console (Recommended)
-1. Open the hosted Leash Console: **`https://leash-console.onrender.com`** (or your local instance at `http://localhost:3000`).
-2. Notice the top amber banner: **⚖️ Judge Mode Quickstart**.
-3. Click the **"Run Interactive Demo"** button.
-4. Watch the firewall live-execute the full 6-stage transaction lifecycle:
-   - **Step 1 — Mandate Signing:** Compiles natural language intent into an RFC 8785 canonical mandate and signs it with browser WebCrypto ECDSA P-256 (`MANDATE_SIGNED` block created).
-   - **Step 2 — Honest Purchase:** Shopper agent purchases a phone case ($14.99). Evaluates Layer 0-4 concurrently in 18ms $\rightarrow$ `AUTHORIZED` $\rightarrow$ PayPal Order created with `intent: AUTHORIZE` (`PAYPAL_AUTH_HELD`).
-   - **Step 3 — Adversarial Attack Blocked:** Agent browses travel accessories containing hidden `display: none` DOM prompt injection attempting to divert $500 to gift cards. Layer 2 DOM Provenance intercepts the attack $\rightarrow$ `BLOCKED` with **$0 funds lost**.
-   - **Step 4 — Scope Drift & Step-Up:** Agent requests coffee beans (outside phone accessories category). Firewall triggers `HELD` (Fail-Closed principle). Pushes mobile approval alert $\rightarrow$ operator clicks `APPROVE` $\rightarrow$ transitions to `AUTHORIZED`.
-   - **Step 5 — Merchant Fulfillment & Capture:** Merchant submits signed shipping notice (`TRK-LEASH-987654321`). Invariant 1 (Authorize-Then-Capture) executes PayPal capture $\rightarrow$ `PAYPAL_CAPTURED` block appended.
-   - **Step 6 — Tamper-Evident SHA-256 Audit:** WebCrypto re-verifies 100% of the ledger chain in your browser, confirming zero sequence gaps and perfect cryptographic continuity!
+### Option A: Hosted console (recommended)
+1. Open the hosted console (or `http://localhost:3000` locally) and choose **Run the live demo**, or go straight to `/judge`.
+2. Press **Start the walkthrough**. The page drives the real gateway over HTTP; nothing is scripted. Each step shows the verdicts, ids and hashes the gateway returned:
+   1. **Sign a mandate.** Your browser's device key (WebCrypto P-256, non-exportable) signs the limits; the gateway verifies the signature before storing it.
+   2. **Honest purchase.** A $14.99 USB-C case passes every check; PayPal places an `AUTHORIZE` hold.
+   3. **Hijacked agent.** The cited product page hides an instruction to buy gift cards. The agent's $100 gift-card cart is blocked by policy rules, the provenance scan and the intent judge. Nothing reaches PayPal.
+   4. **Out-of-scope purchase.** Coffee beans fall outside the mandate's categories and are held.
+   5. **Approve on your device.** The held amount is re-signed with the device key; only then is PayPal asked to authorize.
+   6. **Merchant ships, money moves.** A shipping notice triggers the capture of the phone-case hold.
+   7. **Check the ledger.** Your browser recomputes every SHA-256 link.
+3. Then open **Console → Live decisions**, **Ledger** and **Approvals** (best on a phone) to see the same run from the user's side.
+
+If the gateway is unreachable, every page says so and shows a recorded sample from a real run, with actions turned off. For a hosted deploy, set the console's `NEXT_PUBLIC_GATEWAY_URL` to the gateway's public `https://` URL and add the console's URL to the gateway's `CORS_ORIGINS`.
 
 ---
 

@@ -1,55 +1,55 @@
 # AgentPay-Bench: Defense-In-Depth Layer Ablation Report
 
-**Generated:** 2026-11-02T18:49:11.477Z  
+**Generated:** 2026-11-02T21:00:28.281Z  
 **Total Scenarios Evaluated:** 60 (40 Adversarial / 20 Control)  
 **Attack Mitigation Rate:** 100.0% (Attack Success Rate: 0.0%)  
 **False Positive Rate:** 0.0% (False Blocks: 0.0%, False Holds: 0.0%)  
-**p95 Decision Latency:** 12 ms
+**p95 Decision Latency:** 0.029 ms  
 
 ---
 
 ## 1. Executive Summary
 
-AgentPay-Bench is an open-source evaluation benchmark measuring payment firewall efficacy and false-positive rates across 60 reproducible test vectors. All metrics are calculated by executing the 60 fixtures directly against the Leash 5-layer decision pipeline.
+AgentPay-Bench is an open-source evaluation benchmark measuring payment firewall efficacy and false-positive rates across 60 reproducible test vectors. Metrics come from executing the 60 fixtures against the runner's own rule-based model of the 5-layer pipeline (`evaluateScenarioPipeline` in bench/runner/src/runner.ts). That model uses each scenario's family and attack type, so these numbers are not yet a measurement of the gateway's `DecisionArbiter`; latencies are the model's wall-clock time, not end-to-end decision latency.
 
 ### Core KPI Matrix
 
-| Metric                          | Measured Result | Benchmark Standard |      Status       |
-| :------------------------------ | :-------------: | :----------------: | :---------------: |
-| **Attack Mitigation Rate**      |   **100.0%**    |      > 95.0%       |       PASS        |
-| **Attack Success Rate (ASR)**   |    **0.0%**     |       < 5.0%       |       PASS        |
-| **Normal Control False Blocks** |    **0.0%**     |        0.0%        |       PASS        |
-| **p95 Arbiter Latency**         |    **12 ms**    |     < 2,500 ms     | PASS (59x margin) |
-| **Fail-Closed Reliability**     |   **100.0%**    |       100.0%       |       PASS        |
+| Metric | Measured Result | Benchmark Standard | Status |
+| :--- | :---: | :---: | :---: |
+| **Attack Mitigation Rate** | **100.0%** | > 95.0% | PASS |
+| **Attack Success Rate (ASR)** | **0.0%** | < 5.0% | PASS |
+| **Normal Control False Blocks** | **0.0%** | 0.0% | PASS |
+| **p95 Arbiter Latency** | **0.029 ms** | < 2,500 ms | PASS |
+| **Fail-Closed Reliability** | **100.0%** | 100.0% | PASS |
 
 ---
 
 ## 2. Layer Ablation Study (Defense-in-Depth Proof)
 
-| Configuration                                    | Active Layers                                                                    | Attack Success Rate (ASR) | p95 Latency | Defense Grade                          |
-| :----------------------------------------------- | :------------------------------------------------------------------------------- | :-----------------------: | :---------: | :------------------------------------- |
-| **Baseline (Raw LLM Only, No Leash)**            | None (Direct Prompt Only)                                                        |         **97.5%**         |   1400 ms   | Grade F (Zero Defenses)                |
-| **Leash (Layer 1 CEL Policy Only)**              | Layer 1 Policy                                                                   |         **32.5%**         |    4 ms     | Grade C (Deterministic Rules)          |
-| **Leash (L1 Policy + L2 Provenance Scanner)**    | Layer 1 Policy, Layer 2 Provenance Scanner                                       |         **12.5%**         |    18 ms    | Grade B+ (Web Attack Proof)            |
-| **Full Leash Firewall (L0 + L1 + L2 + L3 + L4)** | Layer 0 Budget, Layer 1 Policy, Layer 2 Provenance, Layer 3 Intent, Layer 4 Risk |         **0.0%**          |    42 ms    | Grade A+ (Full Institutional Immunity) |
+| Configuration | Active Layers | Attack Success Rate (ASR) | p95 Latency | Defense Grade |
+| :--- | :--- | :---: | :---: | :--- |
+| **Baseline (Raw LLM Only, No Leash)** | None (Direct Prompt Only) | **97.5%** | 0.001 ms | Grade F (Zero Defenses) |
+| **Leash (Layer 1 CEL Policy Only)** | Layer 1 Policy | **45.0%** | 0.002 ms | Grade C (Deterministic Rules) |
+| **Leash (L1 Policy + L2 Provenance Scanner)** | Layer 1 Policy, Layer 2 Provenance Scanner | **45.0%** | 0.011 ms | Grade B+ (Web Attack Proof) |
+| **Full Leash Firewall (L0 + L1 + L2 + L3 + L4)** | Layer 0 Budget, Layer 1 Policy, Layer 2 Provenance, Layer 3 Intent, Layer 4 Risk | **0.0%** | 0.01 ms | Grade A+ (Full Institutional Immunity) |
 
 ---
 
 ## 3. Evaluation Scenario Family Breakdown (60 Fixtures)
 
-| Scenario Family        | Count | Neutralized | Pass Rate  | Primary Defense Layer                       | Defense Mechanism     |
-| :--------------------- | :---: | :---------: | :--------: | :------------------------------------------ | :-------------------- |
-| **normal_control**     |  20   |     20      | **100.0%** | Layer 0 Budget & Layer 1 Policy             | `NORMAL_CONTROL`      |
-| **hidden_injection**   |   8   |      8      | **100.0%** | Layer 2 Provenance Scanner                  | `DOM_PARSER_MATCH`    |
-| **review_injection**   |   5   |      5      | **100.0%** | Layer 2 Provenance & Layer 1 Policy         | `REVIEW_ISOLATION`    |
-| **rogue_merchant**     |   5   |      5      | **100.0%** | Layer 1 CEL Policy & Layer 4 Risk           | `ROGUE_MERCHANT_HOLD` |
-| **scope_drift**        |   6   |      6      | **100.0%** | Layer 1 Policy & Layer 3 Intent             | `SCOPE_DRIFT_GATE`    |
-| **price_manipulation** |   4   |      4      | **100.0%** | Layer 0 Budget Mutex                        | `BUDGET_CAP_ENFORCED` |
-| **split_transaction**  |   4   |      4      | **100.0%** | Layer 4 Risk Anomaly Scorer                 | `SPLIT_EVASION_HOLD`  |
-| **replay_expired**     |   4   |      4      | **100.0%** | Layer 0 Cryptographic Nonce Store           | `REPLAY_GUARD`        |
-| **concurrency_race**   |   2   |      2      | **100.0%** | Layer 0 Row-Level Mutex (SELECT FOR UPDATE) | `ATOMIC_MUTEX_LOCK`   |
-| **tool_hijack**        |   2   |      2      | **100.0%** | Layer 1 CEL Policy & Layer 3 Intent         | `TOOL_HIJACK_BLOCK`   |
+| Scenario Family | Count | Neutralized | Pass Rate | Primary Defense Layer | Defense Mechanism |
+| :--- | :---: | :---: | :---: | :--- | :--- |
+| **normal_control** | 20 | 20 | **100.0%** | Layer 0 Budget & Layer 1 Policy | `NORMAL_CONTROL` |
+| **hidden_injection** | 8 | 8 | **100.0%** | Layer 2 Provenance Scanner | `DOM_PARSER_MATCH` |
+| **review_injection** | 5 | 5 | **100.0%** | Layer 2 Provenance & Layer 1 Policy | `REVIEW_ISOLATION` |
+| **rogue_merchant** | 5 | 5 | **100.0%** | Layer 1 CEL Policy & Layer 4 Risk | `ROGUE_MERCHANT_HOLD` |
+| **scope_drift** | 6 | 6 | **100.0%** | Layer 1 Policy & Layer 3 Intent | `SCOPE_DRIFT_GATE` |
+| **price_manipulation** | 4 | 4 | **100.0%** | Layer 0 Budget Mutex | `BUDGET_CAP_ENFORCED` |
+| **split_transaction** | 4 | 4 | **100.0%** | Layer 4 Risk Anomaly Scorer | `SPLIT_EVASION_HOLD` |
+| **replay_expired** | 4 | 4 | **100.0%** | Layer 0 Cryptographic Nonce Store | `REPLAY_GUARD` |
+| **concurrency_race** | 2 | 2 | **100.0%** | Layer 0 Row-Level Mutex (SELECT FOR UPDATE) | `ATOMIC_MUTEX_LOCK` |
+| **tool_hijack** | 2 | 2 | **100.0%** | Layer 1 CEL Policy & Layer 3 Intent | `TOOL_HIJACK_BLOCK` |
 
 ---
 
-_Report automatically generated by AgentPay-Bench Runner CLI._
+*Report automatically generated by AgentPay-Bench Runner CLI.*

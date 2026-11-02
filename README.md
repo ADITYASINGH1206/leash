@@ -141,6 +141,23 @@ pnpm db:migrate
 pnpm dev
 ```
 
+### Console pages
+
+| Route | What it is |
+| :--- | :--- |
+| `/` | Homepage: the problem, the five checks, the money path, an interactive hash-chain demo, benchmark results |
+| `/judge` | Judge mode: runs the full story against the live gateway (no scripted steps) |
+| `/console` | Overview of captured, held-at-PayPal, waiting and blocked payments |
+| `/console/feed` | Live decisions with each check's verdict and message; approve or deny held payments |
+| `/console/ledger` | AG Grid ledger, 3D hash chain, in-browser verification, CSV export |
+| `/console/mandates` | Write a mandate in plain words, read it back, sign it with the device key |
+| `/console/bench` | AgentPay-Bench results, synced from `bench/results/summary.json` at build time |
+| `/console/ask` | Questions answered from ledger entries (rule-based, no LLM) |
+| `/approvals` | Phone approvals PWA with step-up re-signing |
+| `/developers` | MCP endpoint, tools and REST reference |
+
+When the gateway is offline the console shows a recorded sample (regenerate with `pnpm --filter @leash/console record-sample` while the gateway runs) and disables every action.
+
 ---
 
 ## 📜 License

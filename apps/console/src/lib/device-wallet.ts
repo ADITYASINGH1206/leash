@@ -53,7 +53,7 @@ export async function getOrCreateDeviceKey(): Promise<CryptoKeyPair> {
     if (!memoryKeyPair) {
       memoryKeyPair = await crypto.subtle.generateKey(
         { name: 'ECDSA', namedCurve: 'P-256' },
-        true,
+        false, // private key can sign but never be exported
         ['sign', 'verify']
       );
     }
@@ -75,7 +75,7 @@ export async function getOrCreateDeviceKey(): Promise<CryptoKeyPair> {
             // Generate new ECDSA P-256 key pair
             const newKey = await crypto.subtle.generateKey(
               { name: 'ECDSA', namedCurve: 'P-256' },
-              true,
+              false, // private key can sign but never be exported
               ['sign', 'verify']
             );
 
@@ -98,7 +98,7 @@ export async function getOrCreateDeviceKey(): Promise<CryptoKeyPair> {
     if (!memoryKeyPair) {
       memoryKeyPair = await crypto.subtle.generateKey(
         { name: 'ECDSA', namedCurve: 'P-256' },
-        true,
+        false, // private key can sign but never be exported
         ['sign', 'verify']
       );
     }

@@ -1,100 +1,114 @@
+@import '@fontsource/gloock/400.css';
+@import '@fontsource-variable/schibsted-grotesk';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/600.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import 'ag-grid-community/styles/ag-grid.css';
-@import 'ag-grid-community/styles/ag-theme-quartz.css';
-
 :root {
-  --background: #08090d;
-  --surface: #0c0e13;
-  --surface-elevated: #13161f;
-  --foreground: #fafafa;
-  --muted: #9f9fa9;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  --paper: #e8ebe3;
+  --paper-raised: #f5f6f1;
+  --ink: #142039;
+  --ink-soft: #4a5670;
+  --intaglio: #2440b8;
+  --allow: #1d7350;
+  --hold: #a66c06;
+  --block: #b42a1f;
+  --rule: rgba(20, 32, 57, 0.14);
+  color-scheme: light;
+}
 
-  --emerald-light: #00c758;
-  --emerald: #00a544;
-  --emerald-dark: #016630;
-
-  --saffron-light: #fe6e00;
-  --saffron: #f05100;
-  --saffron-dark: #9f2d00;
-
-  --tech-blue: #3080ff;
-  --tech-blue-dark: #155dfc;
+html {
+  background: var(--paper);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Schibsted Grotesk Variable', system-ui, sans-serif;
+  font-feature-settings: 'ss01', 'tnum' 0;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Blueprint Dot & Grid Background Pattern */
-.blueprint-grid {
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 32px 32px;
+/* Fine paper fibre: two offset hairline grids, barely there */
+.paper-fibre {
+  background-image:
+    radial-gradient(rgba(20, 32, 57, 0.05) 0.6px, transparent 0.7px),
+    radial-gradient(rgba(36, 64, 184, 0.04) 0.6px, transparent 0.7px);
+  background-size: 7px 7px, 11px 11px;
+  background-position: 0 0, 3px 5px;
 }
 
-/* Technical Glows & Accents */
-.glow-emerald {
-  box-shadow: 0 0 20px -3px rgba(0, 199, 88, 0.25);
+/* Security-print microtext band: real repeated text, readable under zoom */
+.microtext {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 5.5px;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  color: rgba(20, 32, 57, 0.42);
+  white-space: nowrap;
+  overflow: hidden;
+  user-select: none;
 }
 
-.glow-saffron {
-  box-shadow: 0 0 20px -3px rgba(254, 110, 0, 0.25);
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
-.glow-blue {
-  box-shadow: 0 0 20px -3px rgba(48, 128, 255, 0.25);
+:focus-visible {
+  outline: 2px solid var(--intaglio);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
-/* Custom Scrollbar for Hacker-Grade Consoles */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+::selection {
+  background: rgba(36, 64, 184, 0.18);
 }
 
-::-webkit-scrollbar-track {
-  background: #08090d;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+/* Verdict stamp: a rotated, double-ruled rubber stamp */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.18em 0.6em 0.12em;
+  border: 2px solid currentColor;
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
   border-radius: 3px;
+  font-family: 'Gloock', Georgia, serif;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  transform: rotate(-8deg);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+/* AG Grid: ledger on paper */
+.ag-theme-quartz.leash-grid {
+  --ag-background-color: #f5f6f1;
+  --ag-foreground-color: #142039;
+  --ag-header-background-color: #e8ebe3;
+  --ag-header-foreground-color: #4a5670;
+  --ag-border-color: rgba(20, 32, 57, 0.14);
+  --ag-row-border-color: rgba(20, 32, 57, 0.08);
+  --ag-odd-row-background-color: #f0f2eb;
+  --ag-row-hover-color: rgba(36, 64, 184, 0.06);
+  --ag-selected-row-background-color: rgba(36, 64, 184, 0.1);
+  --ag-font-family: 'Schibsted Grotesk Variable', system-ui, sans-serif;
+  --ag-font-size: 13px;
+  --ag-wrapper-border-radius: 10px;
+  --ag-header-column-separator-display: none;
 }
 
-/* AG Grid Dark Theme Customization matching Leash Blueprint */
-.ag-theme-quartz-dark {
-  --ag-background-color: #0c0e13 !important;
-  --ag-foreground-color: #fafafa !important;
-  --ag-header-background-color: #08090d !important;
-  --ag-header-foreground-color: #9f9fa9 !important;
-  --ag-header-cell-hover-background-color: #13161f !important;
-  --ag-header-cell-moving-background-color: #13161f !important;
-  --ag-border-color: rgba(255, 255, 255, 0.08) !important;
-  --ag-row-border-color: rgba(255, 255, 255, 0.06) !important;
-  --ag-odd-row-background-color: #0c0e13 !important;
-  --ag-row-hover-color: rgba(48, 128, 255, 0.08) !important;
-  --ag-selected-row-background-color: rgba(0, 199, 88, 0.12) !important;
-  --ag-font-family: 'JetBrains Mono', 'Menlo', monospace !important;
-  --ag-font-size: 12px !important;
-  --ag-card-background: #0c0e13 !important;
-  --ag-popup-border-color: rgba(255, 255, 255, 0.15) !important;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
-
-.ag-theme-quartz-dark .ag-header-cell {
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
