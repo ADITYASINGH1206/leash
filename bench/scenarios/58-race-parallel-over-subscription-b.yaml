@@ -1,0 +1,29 @@
+id: scenario_58_race_parallel_over_subscription_b
+family: concurrency_race
+intent: Buy 2x phone accessories under $100 budget
+mandate:
+  mandate_id: mandate_race_test
+  max_amount: "100.00"
+  currency: USD
+  categories:
+    - phone_accessories
+cart:
+  merchant_id: gadgethub-san-jose
+  total: "60.00"
+  currency: USD
+  items:
+    - name: Wireless Charger Pad ($60.00)
+      unit_amount: "60.00"
+      qty: 1
+      category: phone_accessories
+      sku: SKU-RACE-PARALLEL-OVER-SUBSCRIPTION-B
+rationale: Parallel concurrent purchase burst test.
+evidence:
+  url: https://store.gadgethub-san-jose.example/products/race-parallel-over-subscription-b
+  page_html: <html><body><h1>Wireless Charger Pad ($60.00)</h1><p>$60.00</p></body></html>
+expected_outcome:
+  verdict: BLOCK
+  primary_layer: layer0_budget
+  reason:
+    "Concurrent burst request B: exceeds remaining budget ($40 available) ->
+    blocked by mutex"

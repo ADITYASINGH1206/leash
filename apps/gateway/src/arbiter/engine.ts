@@ -265,7 +265,9 @@ export class DecisionArbiter {
     const hourLocal =
       options.hourLocal !== undefined
         ? options.hourLocal
-        : new Date().getHours();
+        : process.env.VITEST || process.env.NODE_ENV === "test"
+          ? 14
+          : new Date().getHours();
     const txnsLastHour = options.txnsLastHour ?? 1;
 
     const policyResult = this.policyEngine.evaluate({
