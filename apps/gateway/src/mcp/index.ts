@@ -28,10 +28,10 @@ export interface MCPPaymentResult {
   trace: DecisionTrace;
 }
 
-const policyEngine = new PolicyEngine();
-const provenanceScanner = new ProvenanceScanner();
-const decisionArbiter = new DecisionArbiter(policyEngine, provenanceScanner);
-const paypalClient = new PayPalClient({
+export const policyEngine = new PolicyEngine();
+export const provenanceScanner = new ProvenanceScanner();
+export const decisionArbiter = new DecisionArbiter(policyEngine, provenanceScanner);
+export const paypalClient = new PayPalClient({
   clientId: process.env.PAYPAL_CLIENT_ID || "sandbox_client_id_placeholder",
   clientSecret:
     process.env.PAYPAL_CLIENT_SECRET || "sandbox_client_secret_placeholder",

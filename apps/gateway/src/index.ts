@@ -7,8 +7,10 @@ import { GatewayRepository } from "./db/repository.js";
 import { verifyLedgerChain, LEDGER_EVENT_KINDS } from "@leash/shared";
 import { seedInMemoryMandate, getInMemoryMandate, releaseReservedBudget } from "./db/budget-mutex.js";
 import { closeDb } from "./db/connection.js";
+import { jobRunner } from "./jobs/index.js";
 
 export * from "./arbiter/index.js";
+export * from "./jobs/index.js";
 
 
 export async function createServer() {
@@ -16,6 +18,7 @@ export async function createServer() {
   const mcpServer = createMcpServer();
 
   app.addHook("onClose", async () => {
+    await jobRunner.stop();
     await mcpServer.close();
     await closeDb();
   });
@@ -186,6 +189,23 @@ export async function createServer() {
       action: body.action,
       status: newStatus,
     };
+  });
+
+  // Background Jobs: Status Endpoint
+  app.get("/api/v1/jobs/status", async () => {
+    return jobRunner.getStatus();
+  });
+
+  // Background Jobs: Manual / Webhook Auto-Void Trigger
+  app.post("/api/v1/jobs/autovoid/trigger", async (req) => {
+    const body = (req.body as { olderThanMs?: number }) || {};
+    return jobRunner.runAutoVoidNow(body);
+  });
+
+  // Background Jobs: Manual / Scheduled Reconciliation Trigger
+  app.post("/api/v1/jobs/reconcile/trigger", async (req) => {
+    const body = (req.body as { limit?: number }) || {};
+    return jobRunner.runReconciliationNow(body);
   });
 
   // MCP JSON-RPC 2.0 Dispatch Endpoint
