@@ -13,7 +13,9 @@
   },
   "dependencies": {
     "@leash/mandates": "workspace:*",
-    "@leash/shared": "workspace:*"
+    "@leash/shared": "workspace:*",
+    "fastify": "^5.2.0",
+    "jose": "^5.9.6"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
