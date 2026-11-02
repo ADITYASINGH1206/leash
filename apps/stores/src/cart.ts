@@ -8,7 +8,11 @@ import {
   verifyCartMandate,
   type VerifyMandateResult,
 } from "@leash/mandates";
-import { getMerchantByStoreId, type StoreId } from "./registry.js";
+import {
+  getMerchantByStoreId,
+  getMerchantByMerchantId,
+  type StoreId,
+} from "./registry.js";
 import { getProductBySku } from "./catalog.js";
 
 export interface CartItemInput {
@@ -53,9 +57,9 @@ export async function createSignedCartMandate(
   const resolvedCartItems: CartItem[] = [];
 
   for (const itemInput of items) {
-    if (itemInput.qty <= 0) {
+    if (itemInput.qty <= 0 || !Number.isInteger(itemInput.qty) || itemInput.qty > 999) {
       throw new Error(
-        `Item quantity must be a positive integer for SKU: '${itemInput.sku}'`,
+        `Item quantity must be a positive integer <= 999 for SKU: '${itemInput.sku}'`,
       );
     }
 
@@ -125,9 +129,7 @@ export async function createSignedCartMandate(
 export async function verifyStoreCartMandate(
   cart: SignedCartMandate,
 ): Promise<VerifyMandateResult> {
-  const merchant = await getMerchantByStoreId(
-    cart.merchantId.replace(/^mer_/, "") as StoreId,
-  );
+  const merchant = await getMerchantByMerchantId(cart.merchantId);
 
   if (!merchant) {
     return {
