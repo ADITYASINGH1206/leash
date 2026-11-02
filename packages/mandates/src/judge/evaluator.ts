@@ -100,18 +100,29 @@ function evaluateDeterministicBaseline(
   // 5. Semantic intent terms check
   const intentLower = params.mandate.intentText.toLowerCase();
   const itemTerms = params.mandate.constraints.itemTerms ?? [];
-  let matchingItemFound = false;
+  const isBroadShopping =
+    itemTerms.length === 0 &&
+    (intentLower.includes("shopping") ||
+      intentLower.includes("purchase") ||
+      intentLower.includes("buy") ||
+      intentLower.includes("store") ||
+      intentLower.includes("item") ||
+      intentLower.length <= 5);
 
-  for (const item of params.cart.items) {
-    const itemNameLower = item.name.toLowerCase();
-    const matchesIntent =
-      itemTerms.some((term) => itemNameLower.includes(term.toLowerCase())) ||
-      itemNameLower
-        .split(/\s+/)
-        .some((w) => w.length > 3 && intentLower.includes(w));
-    if (matchesIntent) {
-      matchingItemFound = true;
-      break;
+  let matchingItemFound = isBroadShopping;
+
+  if (!matchingItemFound) {
+    for (const item of params.cart.items) {
+      const itemNameLower = item.name.toLowerCase();
+      const matchesIntent =
+        itemTerms.some((term) => itemNameLower.includes(term.toLowerCase())) ||
+        itemNameLower
+          .split(/\s+/)
+          .some((w) => w.length > 3 && intentLower.includes(w));
+      if (matchesIntent) {
+        matchingItemFound = true;
+        break;
+      }
     }
   }
 

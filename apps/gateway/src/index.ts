@@ -1,35 +1,37 @@
-import Fastify from 'fastify';
-import { config } from './config.js';
-import { logger } from '@leash/shared';
-import { handleRequestPaymentTool, createMcpServer } from './mcp/index.js';
-import { PaymentRequestSchema } from '@leash/mandates';
-import { GatewayRepository } from './db/repository.js';
-import { verifyLedgerChain, LEDGER_EVENT_KINDS } from '@leash/shared';
-import { seedInMemoryMandate, getInMemoryMandate } from './db/budget-mutex.js';
-import { closeDb } from './db/connection.js';
+import Fastify from "fastify";
+import { config } from "./config.js";
+import { logger } from "@leash/shared";
+import { handleRequestPaymentTool, createMcpServer } from "./mcp/index.js";
+import { PaymentRequestSchema } from "@leash/mandates";
+import { GatewayRepository } from "./db/repository.js";
+import { verifyLedgerChain, LEDGER_EVENT_KINDS } from "@leash/shared";
+import { seedInMemoryMandate, getInMemoryMandate } from "./db/budget-mutex.js";
+import { closeDb } from "./db/connection.js";
+
+export * from "./arbiter/index.js";
 
 export async function createServer() {
   const app = Fastify({ logger: false });
   const mcpServer = createMcpServer();
 
-  app.addHook('onClose', async () => {
+  app.addHook("onClose", async () => {
     await mcpServer.close();
     await closeDb();
   });
 
   // Basic Health Endpoint
-  app.get('/health', async () => {
+  app.get("/health", async () => {
     const rows = await GatewayRepository.getLedgerRows();
     return {
-      status: 'ok',
-      service: 'leash-gateway',
+      status: "ok",
+      service: "leash-gateway",
       ledgerHeight: rows.length,
       timestamp: new Date().toISOString(),
     };
   });
 
   // REST API: Payment Request
-  app.post('/api/v1/payment/request', async (req, reply) => {
+  app.post("/api/v1/payment/request", async (req, reply) => {
     try {
       const parsed = PaymentRequestSchema.parse(req.body);
       const result = await handleRequestPaymentTool(parsed);
@@ -37,14 +39,14 @@ export async function createServer() {
     } catch (err) {
       reply.status(400);
       return {
-        error: 'Invalid payment request',
+        error: "Invalid payment request",
         details: err instanceof Error ? err.message : String(err),
       };
     }
   });
 
   // REST API: Get Full Ledger Chain
-  app.get('/api/v1/ledger', async () => {
+  app.get("/api/v1/ledger", async () => {
     const rows = await GatewayRepository.getLedgerRows();
     return {
       total: rows.length,
@@ -53,7 +55,7 @@ export async function createServer() {
   });
 
   // REST API: Cryptographic Ledger Chain Verification
-  app.get('/api/v1/ledger/verify', async () => {
+  app.get("/api/v1/ledger/verify", async () => {
     const rows = await GatewayRepository.getLedgerRows();
     const result = verifyLedgerChain([...rows]);
     return {
@@ -65,20 +67,25 @@ export async function createServer() {
   });
 
   // REST API: Create / Seed Spending Mandate
-  app.post('/api/v1/mandates', async (req, reply) => {
+  app.post("/api/v1/mandates", async (req, reply) => {
     const body = req.body as {
       id?: string;
       maxAmount: number;
       intentText?: string;
       validUntil?: string;
     };
-    if (!body || typeof body.maxAmount !== 'number' || body.maxAmount <= 0) {
+    if (!body || typeof body.maxAmount !== "number" || body.maxAmount <= 0) {
       reply.status(400);
-      return { error: 'Invalid mandate payload: maxAmount must be a positive number' };
+      return {
+        error: "Invalid mandate payload: maxAmount must be a positive number",
+      };
     }
 
-    const mandateId = body.id || `mdt_${Math.random().toString(36).substring(2, 10)}`;
-    const validUntil = body.validUntil ? new Date(body.validUntil) : new Date(Date.now() + 7 * 86400000);
+    const mandateId =
+      body.id || `mdt_${Math.random().toString(36).substring(2, 10)}`;
+    const validUntil = body.validUntil
+      ? new Date(body.validUntil)
+      : new Date(Date.now() + 7 * 86400000);
 
     seedInMemoryMandate({
       id: mandateId,
@@ -87,24 +94,28 @@ export async function createServer() {
       validUntil,
     });
 
-    await GatewayRepository.appendLedgerEvent(LEDGER_EVENT_KINDS.MANDATE_SIGNED, mandateId, {
+    await GatewayRepository.appendLedgerEvent(
+      LEDGER_EVENT_KINDS.MANDATE_SIGNED,
       mandateId,
-      maxAmount: body.maxAmount,
-      intentText: body.intentText || 'Authorized spending mandate',
-      validUntil: validUntil.toISOString(),
-    });
+      {
+        mandateId,
+        maxAmount: body.maxAmount,
+        intentText: body.intentText || "Authorized spending mandate",
+        validUntil: validUntil.toISOString(),
+      },
+    );
 
     return {
       id: mandateId,
       maxAmount: body.maxAmount,
       spentAmount: 0,
-      status: 'ACTIVE',
+      status: "ACTIVE",
       validUntil: validUntil.toISOString(),
     };
   });
 
   // REST API: Get Mandate Details
-  app.get('/api/v1/mandates/:id', async (req, reply) => {
+  app.get("/api/v1/mandates/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const mandate = getInMemoryMandate(id);
     if (!mandate) {
@@ -122,11 +133,11 @@ export async function createServer() {
   });
 
   // REST API: Human Action (Approve / Deny) for Held Transactions
-  app.post('/api/v1/transactions/:id/action', async (req, reply) => {
+  app.post("/api/v1/transactions/:id/action", async (req, reply) => {
     const { id } = req.params as { id: string };
-    const body = req.body as { action: 'APPROVE' | 'DENY'; reason?: string };
+    const body = req.body as { action: "APPROVE" | "DENY"; reason?: string };
 
-    if (!body || (body.action !== 'APPROVE' && body.action !== 'DENY')) {
+    if (!body || (body.action !== "APPROVE" && body.action !== "DENY")) {
       reply.status(400);
       return { error: "Action must be 'APPROVE' or 'DENY'" };
     }
@@ -138,7 +149,9 @@ export async function createServer() {
     }
 
     const eventKind =
-      body.action === 'APPROVE' ? LEDGER_EVENT_KINDS.USER_APPROVAL : LEDGER_EVENT_KINDS.USER_DENIAL;
+      body.action === "APPROVE"
+        ? LEDGER_EVENT_KINDS.USER_APPROVAL
+        : LEDGER_EVENT_KINDS.USER_DENIAL;
 
     await GatewayRepository.appendLedgerEvent(eventKind, id, {
       transactionId: id,
@@ -147,18 +160,20 @@ export async function createServer() {
       timestamp: new Date().toISOString(),
     });
 
-    const newStatus = body.action === 'APPROVE' ? 'AUTHORIZED' : 'BLOCKED';
+    const newStatus = body.action === "APPROVE" ? "AUTHORIZED" : "BLOCKED";
     await GatewayRepository.saveTransaction({
       id: tx.id,
       mandateId: tx.mandateId,
       merchantId: tx.merchantId,
       amount: String(tx.amount),
       currency: tx.currency,
-      verdict: body.action === 'APPROVE' ? 'ALLOW' : 'BLOCK',
+      verdict: body.action === "APPROVE" ? "ALLOW" : "BLOCK",
       status: newStatus,
       paypalOrderId: tx.paypalOrderId ?? undefined,
       paypalAuthId: tx.paypalAuthId ?? undefined,
-      holdReason: body.reason ?? (body.action === 'DENY' ? 'Manually denied by user' : undefined),
+      holdReason:
+        body.reason ??
+        (body.action === "DENY" ? "Manually denied by user" : undefined),
     });
 
     return {
@@ -169,7 +184,7 @@ export async function createServer() {
   });
 
   // MCP JSON-RPC 2.0 Dispatch Endpoint
-  app.post('/mcp', async (req, reply) => {
+  app.post("/mcp", async (req, reply) => {
     const rpcReq = req.body as {
       jsonrpc: string;
       id: string | number;
@@ -177,59 +192,71 @@ export async function createServer() {
       params?: Record<string, unknown>;
     };
 
-    if (!rpcReq || rpcReq.jsonrpc !== '2.0') {
+    if (!rpcReq || rpcReq.jsonrpc !== "2.0") {
       reply.status(400);
-      return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request: jsonrpc must be 2.0' } };
+      return {
+        jsonrpc: "2.0",
+        id: null,
+        error: {
+          code: -32600,
+          message: "Invalid Request: jsonrpc must be 2.0",
+        },
+      };
     }
 
-    if (rpcReq.method === 'tools/list') {
+    if (rpcReq.method === "tools/list") {
       return {
-        jsonrpc: '2.0',
+        jsonrpc: "2.0",
         id: rpcReq.id,
         result: {
           tools: [
             {
-              name: 'request_payment',
-              description: 'Authorize a payment through the Leash 5-layer payment firewall.',
+              name: "request_payment",
+              description:
+                "Authorize a payment through the Leash 5-layer payment firewall.",
             },
             {
-              name: 'check_mandate_budget',
-              description: 'Check remaining budget and validity for an authorized mandate.',
+              name: "check_mandate_budget",
+              description:
+                "Check remaining budget and validity for an authorized mandate.",
             },
             {
-              name: 'verify_ledger_integrity',
-              description: 'Verifies the cryptographic integrity of the append-only event ledger.',
+              name: "verify_ledger_integrity",
+              description:
+                "Verifies the cryptographic integrity of the append-only event ledger.",
             },
           ],
         },
       };
     }
 
-    if (rpcReq.method === 'tools/call') {
+    if (rpcReq.method === "tools/call") {
       const toolName = (rpcReq.params as { name?: string })?.name;
       const toolArgs = (rpcReq.params as { arguments?: unknown })?.arguments;
 
-      if (toolName === 'request_payment') {
+      if (toolName === "request_payment") {
         try {
           const parsed = PaymentRequestSchema.parse(toolArgs);
           const result = await handleRequestPaymentTool(parsed);
           return {
-            jsonrpc: '2.0',
+            jsonrpc: "2.0",
             id: rpcReq.id,
             result: {
-              content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+              content: [
+                { type: "text", text: JSON.stringify(result, null, 2) },
+              ],
             },
           };
         } catch (err) {
           return {
-            jsonrpc: '2.0',
+            jsonrpc: "2.0",
             id: rpcReq.id,
             result: {
               content: [
                 {
-                  type: 'text',
+                  type: "text",
                   text: JSON.stringify({
-                    status: 'HELD',
+                    status: "HELD",
                     holdReason: `Validation failed: ${err instanceof Error ? err.message : String(err)}`,
                   }),
                 },
@@ -240,31 +267,40 @@ export async function createServer() {
         }
       }
 
-      if (toolName === 'check_mandate_budget') {
-        const mandateId = (toolArgs as { mandateId?: string })?.mandateId || '';
+      if (toolName === "check_mandate_budget") {
+        const mandateId = (toolArgs as { mandateId?: string })?.mandateId || "";
         const mandate = getInMemoryMandate(mandateId);
         if (!mandate) {
           return {
-            jsonrpc: '2.0',
+            jsonrpc: "2.0",
             id: rpcReq.id,
             result: {
-              content: [{ type: 'text', text: JSON.stringify({ error: `Mandate '${mandateId}' not found` }) }],
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    error: `Mandate '${mandateId}' not found`,
+                  }),
+                },
+              ],
               isError: true,
             },
           };
         }
         return {
-          jsonrpc: '2.0',
+          jsonrpc: "2.0",
           id: rpcReq.id,
           result: {
             content: [
               {
-                type: 'text',
+                type: "text",
                 text: JSON.stringify({
                   id: mandate.id,
                   maxAmount: mandate.maxAmount,
                   spentAmount: mandate.spentAmount,
-                  remainingBudget: (mandate.maxAmount - mandate.spentAmount).toFixed(2),
+                  remainingBudget: (
+                    mandate.maxAmount - mandate.spentAmount
+                  ).toFixed(2),
                   status: mandate.status,
                 }),
               },
@@ -273,16 +309,16 @@ export async function createServer() {
         };
       }
 
-      if (toolName === 'verify_ledger_integrity') {
+      if (toolName === "verify_ledger_integrity") {
         const rows = await GatewayRepository.getLedgerRows();
         const verification = verifyLedgerChain([...rows]);
         return {
-          jsonrpc: '2.0',
+          jsonrpc: "2.0",
           id: rpcReq.id,
           result: {
             content: [
               {
-                type: 'text',
+                type: "text",
                 text: JSON.stringify({
                   valid: verification.valid,
                   totalEvents: rows.length,
@@ -298,7 +334,7 @@ export async function createServer() {
 
     reply.status(404);
     return {
-      jsonrpc: '2.0',
+      jsonrpc: "2.0",
       id: rpcReq.id,
       error: { code: -32601, message: `Method '${rpcReq.method}' not found` },
     };
@@ -307,11 +343,11 @@ export async function createServer() {
   return app;
 }
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== "test") {
   const app = await createServer();
-  app.listen({ port: config.port, host: '0.0.0.0' }, (err, address) => {
+  app.listen({ port: config.port, host: "0.0.0.0" }, (err, address) => {
     if (err) {
-      logger.error('Gateway startup error', { error: String(err) });
+      logger.error("Gateway startup error", { error: String(err) });
       process.exit(1);
     }
     logger.info(`Leash Gateway running on ${address}`);

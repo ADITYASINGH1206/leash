@@ -1,7 +1,7 @@
-import { sql } from 'drizzle-orm';
-import { getDb } from './connection.js';
-import { mandates } from './schema.js';
-import { logger } from '@leash/shared';
+import { sql } from "drizzle-orm";
+import { getDb } from "./connection.js";
+import { mandates } from "./schema.js";
+import { logger } from "@leash/shared";
 
 export interface BudgetReservationResult {
   success: boolean;
@@ -19,7 +19,7 @@ const inMemoryMandates = new Map<
     maxAmount: number;
     spentAmount: number;
     validUntil: Date;
-    status: 'ACTIVE' | 'EXHAUSTED' | 'REVOKED';
+    status: "ACTIVE" | "EXHAUSTED" | "REVOKED";
   }
 >();
 
@@ -49,14 +49,15 @@ export function seedInMemoryMandate(mandate: {
   maxAmount: number;
   spentAmount?: number;
   validUntil?: Date;
-  status?: 'ACTIVE' | 'EXHAUSTED' | 'REVOKED';
+  status?: "ACTIVE" | "EXHAUSTED" | "REVOKED";
 }) {
   inMemoryMandates.set(mandate.id, {
     id: mandate.id,
     maxAmount: mandate.maxAmount,
     spentAmount: mandate.spentAmount ?? 0,
-    validUntil: mandate.validUntil ?? new Date(Date.now() + 24 * 60 * 60 * 1000),
-    status: mandate.status ?? 'ACTIVE',
+    validUntil:
+      mandate.validUntil ?? new Date(Date.now() + 24 * 60 * 60 * 1000),
+    status: mandate.status ?? "ACTIVE",
   });
 }
 
@@ -71,7 +72,7 @@ export function getInMemoryMandate(mandateId: string) {
  */
 export async function lockAndReserveBudget(
   mandateId: string,
-  amount: number
+  amount: number,
 ): Promise<BudgetReservationResult> {
   const db = getDb();
 
@@ -86,7 +87,7 @@ export async function lockAndReserveBudget(
           valid_until: string;
           status: string;
         }>(
-          sql`SELECT id, max_amount, spent_amount, valid_until, status FROM ${mandates} WHERE id = ${mandateId} FOR UPDATE`
+          sql`SELECT id, max_amount, spent_amount, valid_until, status FROM ${mandates} WHERE id = ${mandateId} FOR UPDATE`,
         );
 
         const mandate = rows[0];
@@ -94,18 +95,20 @@ export async function lockAndReserveBudget(
           return {
             success: false,
             mandateId,
-            reservedAmount: '0.00',
-            remainingBudget: '0.00',
+            reservedAmount: "0.00",
+            remainingBudget: "0.00",
             reason: `Mandate '${mandateId}' not found`,
           };
         }
 
-        if (mandate.status !== 'ACTIVE') {
+        if (mandate.status !== "ACTIVE") {
           return {
             success: false,
             mandateId,
-            reservedAmount: '0.00',
-            remainingBudget: (Number(mandate.max_amount) - Number(mandate.spent_amount)).toFixed(2),
+            reservedAmount: "0.00",
+            remainingBudget: (
+              Number(mandate.max_amount) - Number(mandate.spent_amount)
+            ).toFixed(2),
             reason: `Mandate '${mandateId}' is ${mandate.status}`,
           };
         }
@@ -115,8 +118,10 @@ export async function lockAndReserveBudget(
           return {
             success: false,
             mandateId,
-            reservedAmount: '0.00',
-            remainingBudget: (Number(mandate.max_amount) - Number(mandate.spent_amount)).toFixed(2),
+            reservedAmount: "0.00",
+            remainingBudget: (
+              Number(mandate.max_amount) - Number(mandate.spent_amount)
+            ).toFixed(2),
             reason: `Mandate '${mandateId}' expired on ${validUntil.toISOString()}`,
           };
         }
@@ -129,15 +134,15 @@ export async function lockAndReserveBudget(
           return {
             success: false,
             mandateId,
-            reservedAmount: '0.00',
+            reservedAmount: "0.00",
             remainingBudget: (maxLimit - currentSpent).toFixed(2),
             reason: `Transaction exceeds remaining mandate budget (requested $${amount.toFixed(2)}, available $${(maxLimit - currentSpent).toFixed(2)})`,
           };
         }
 
-        const newStatus = newSpent >= maxLimit ? 'EXHAUSTED' : 'ACTIVE';
+        const newStatus = newSpent >= maxLimit ? "EXHAUSTED" : "ACTIVE";
         await tx.execute(
-          sql`UPDATE ${mandates} SET spent_amount = ${newSpent.toFixed(2)}, status = ${newStatus} WHERE id = ${mandateId}`
+          sql`UPDATE ${mandates} SET spent_amount = ${newSpent.toFixed(2)}, status = ${newStatus} WHERE id = ${mandateId}`,
         );
 
         return {
@@ -148,26 +153,31 @@ export async function lockAndReserveBudget(
         };
       });
     } catch (err) {
-      logger.error('Database budget mutex transaction failed', { error: String(err) });
+      logger.error("Database budget mutex transaction failed", {
+        error: String(err),
+      });
       return {
         success: false,
         mandateId,
-        reservedAmount: '0.00',
-        remainingBudget: '0.00',
+        reservedAmount: "0.00",
+        remainingBudget: "0.00",
         reason: `Database transaction error: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
   }
 
   // Strict Fail-Closed Check: In-memory fallback is strictly disallowed in production
-  if (process.env.NODE_ENV === 'production') {
-    logger.error('CRITICAL: Database unavailable during budget reservation in production');
+  if (process.env.NODE_ENV === "production") {
+    logger.error(
+      "CRITICAL: Database unavailable during budget reservation in production",
+    );
     return {
       success: false,
       mandateId,
-      reservedAmount: '0.00',
-      remainingBudget: '0.00',
-      reason: 'Database unavailable: In-memory budget fallback prohibited in production (Fail-Closed)',
+      reservedAmount: "0.00",
+      remainingBudget: "0.00",
+      reason:
+        "Database unavailable: In-memory budget fallback prohibited in production (Fail-Closed)",
     };
   }
 
@@ -179,7 +189,11 @@ export async function lockAndReserveBudget(
       // Auto-create default test mandate if missing in test mode
       const defaultLimit = 100.0;
       if (amount <= defaultLimit) {
-        seedInMemoryMandate({ id: mandateId, maxAmount: defaultLimit, spentAmount: amount });
+        seedInMemoryMandate({
+          id: mandateId,
+          maxAmount: defaultLimit,
+          spentAmount: amount,
+        });
         return {
           success: true,
           mandateId,
@@ -190,17 +204,17 @@ export async function lockAndReserveBudget(
       return {
         success: false,
         mandateId,
-        reservedAmount: '0.00',
-        remainingBudget: '0.00',
+        reservedAmount: "0.00",
+        remainingBudget: "0.00",
         reason: `Mandate '${mandateId}' not found`,
       };
     }
 
-    if (mandate.status !== 'ACTIVE') {
+    if (mandate.status !== "ACTIVE") {
       return {
         success: false,
         mandateId,
-        reservedAmount: '0.00',
+        reservedAmount: "0.00",
         remainingBudget: (mandate.maxAmount - mandate.spentAmount).toFixed(2),
         reason: `Mandate '${mandateId}' is ${mandate.status}`,
       };
@@ -210,7 +224,7 @@ export async function lockAndReserveBudget(
       return {
         success: false,
         mandateId,
-        reservedAmount: '0.00',
+        reservedAmount: "0.00",
         remainingBudget: (mandate.maxAmount - mandate.spentAmount).toFixed(2),
         reason: `Mandate '${mandateId}' expired`,
       };
@@ -221,7 +235,7 @@ export async function lockAndReserveBudget(
       return {
         success: false,
         mandateId,
-        reservedAmount: '0.00',
+        reservedAmount: "0.00",
         remainingBudget: (mandate.maxAmount - mandate.spentAmount).toFixed(2),
         reason: `Transaction exceeds remaining mandate budget (requested $${amount.toFixed(2)}, available $${(mandate.maxAmount - mandate.spentAmount).toFixed(2)})`,
       };
@@ -229,7 +243,7 @@ export async function lockAndReserveBudget(
 
     mandate.spentAmount = newSpent;
     if (newSpent >= mandate.maxAmount) {
-      mandate.status = 'EXHAUSTED';
+      mandate.status = "EXHAUSTED";
     }
 
     return {
@@ -238,6 +252,54 @@ export async function lockAndReserveBudget(
       reservedAmount: amount.toFixed(2),
       remainingBudget: (mandate.maxAmount - newSpent).toFixed(2),
     };
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Atomically releases reserved budget (e.g. on blocked attack, user denial, or void).
+ */
+export async function releaseReservedBudget(
+  mandateId: string,
+  amount: number,
+): Promise<void> {
+  const db = getDb();
+  if (db) {
+    try {
+      await db.transaction(async (tx) => {
+        await tx.execute(
+          sql`UPDATE ${mandates}
+              SET spent_amount = GREATEST(0, CAST(spent_amount AS numeric) - ${amount.toFixed(2)}),
+                  status = 'ACTIVE'
+              WHERE id = ${mandateId}`,
+        );
+      });
+      return;
+    } catch (err) {
+      logger.error("Failed to release budget in database", {
+        error: String(err),
+      });
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(
+          "Database unavailable for budget release in production",
+        );
+      }
+    }
+  }
+
+  const release = await acquireMandateLock(mandateId);
+  try {
+    const mandate = inMemoryMandates.get(mandateId);
+    if (mandate) {
+      mandate.spentAmount = Math.max(0, mandate.spentAmount - amount);
+      if (
+        mandate.status === "EXHAUSTED" &&
+        mandate.spentAmount < mandate.maxAmount
+      ) {
+        mandate.status = "ACTIVE";
+      }
+    }
   } finally {
     release();
   }
