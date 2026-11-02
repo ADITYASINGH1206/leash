@@ -42,6 +42,16 @@ export interface ArbiterOptions {
   noveltyScore?: number;
 
   /**
+   * Historical average purchase spend for agent (default: $25.00).
+   */
+  historicalMean?: number;
+
+  /**
+   * Number of consecutive recent failed or rejected attempts.
+   */
+  recentFailedAttempts?: number;
+
+  /**
    * Threshold above which transactions are placed on HOLD for human confirmation.
    * Defaults to mandate constraints or $100.00.
    */
