@@ -288,12 +288,60 @@ export class PayPalClient {
       }
     }
 
+    if (!authorizationId && (status === 'APPROVED' || status === 'COMPLETED')) {
+      try {
+        const authData = await this.authorizeOrder(orderId);
+        if (authData.authorizationId) {
+          authorizationId = authData.authorizationId;
+        }
+      } catch (err) {
+        console.warn('Failed to authorize approved order via /authorize endpoint', { orderId, error: String(err) });
+      }
+    }
+
     return {
       id: orderId,
       status,
       intent: 'AUTHORIZE',
       authorizationId,
       links: raw.links as Array<{ href: string; rel: string; method: string }>,
+      raw,
+    };
+  }
+
+  /**
+   * Explicitly authorizes an approved PayPal order via POST /v2/checkout/orders/{id}/authorize
+   */
+  async authorizeOrder(orderId: string): Promise<{ authorizationId: string; status: string; raw?: unknown }> {
+    if (this.config.mockMode) {
+      return { authorizationId: `auth_mock_${orderId}`, status: 'COMPLETED' };
+    }
+
+    const token = await this.getAccessToken();
+    const response = await fetch(`${this.baseUrl}/v2/checkout/orders/${orderId}/authorize`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`PayPal authorizeOrder failed (${response.status}): ${err}`);
+    }
+
+    const raw = (await response.json()) as Record<string, unknown>;
+    const purchaseUnits = (raw.purchase_units as Array<Record<string, unknown>>) || [];
+    const firstUnit = purchaseUnits[0];
+    const payments = firstUnit?.payments as Record<string, unknown> | undefined;
+    const authorizations = (payments?.authorizations as Array<Record<string, unknown>>) || [];
+    const auth = authorizations[0];
+
+    return {
+      authorizationId: (auth?.id as string) || '',
+      status: (auth?.status as string) || (raw.status as string),
       raw,
     };
   }

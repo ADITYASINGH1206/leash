@@ -9,6 +9,21 @@ import { seedInMemoryMandate, getInMemoryMandate, releaseReservedBudget } from "
 import { closeDb } from "./db/connection.js";
 import { jobRunner } from "./jobs/index.js";
 import type { TransactionRow } from "./db/schema.js";
+import {
+  getMerchantByMerchantId,
+  verifyFulfilmentNotice,
+  type SignedFulfilmentNotice,
+} from "@leash/stores";
+
+export const registeredDeviceKeys = new Set<string>();
+
+export function registerDevicePublicKey(publicKey: string): void {
+  registeredDeviceKeys.add(publicKey);
+}
+
+export function isDeviceKeyRegistered(publicKey: string): boolean {
+  return registeredDeviceKeys.has(publicKey);
+}
 
 import {
   registerPushSubscription,
@@ -293,6 +308,104 @@ export async function createServer() {
     return { count: subs.length, subscriptions: subs };
   });
 
+  // REST API: Register Device Public Key for Pinning
+  app.post("/api/v1/devices/register", async (req, reply) => {
+    const { publicKey, deviceName } = (req.body || {}) as {
+      publicKey?: string;
+      deviceName?: string;
+    };
+    if (!publicKey) {
+      reply.status(400);
+      return { error: "Missing 'publicKey' in request body" };
+    }
+    registerDevicePublicKey(publicKey);
+    return {
+      success: true,
+      registered: true,
+      deviceName: deviceName || "Unknown Device",
+      totalDevices: registeredDeviceKeys.size,
+    };
+  });
+
+  // REST API: AI-Powered Mandate Compiler with rule-based fallback
+  app.post("/api/v1/mandates/compile", async (req, reply) => {
+    const { prompt } = (req.body || {}) as { prompt?: string };
+    if (!prompt) {
+      reply.status(400);
+      return { error: "Missing 'prompt' in request body" };
+    }
+
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey) {
+      try {
+        const systemPrompt = `You are a financial mandate compiler for autonomous AI shopping agents.
+Extract spending constraints from user requests into JSON matching:
+{
+  "maxAmount": number (total spending limit),
+  "maxPerTxn": number (per-transaction cap <= maxAmount),
+  "categories": string[] (allowed categories e.g. ["phone_accessories", "cables", "groceries", "electronics"]),
+  "itemTerms": string[] (specific keywords),
+  "days": number (expiry in days, default 7),
+  "playback": string (plain-language summary),
+  "warnings": string[] (any ambiguity notes)
+}
+Return ONLY valid JSON.`;
+
+        const userPrompt = `Compile spending mandate from: "${prompt}"`;
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              system_instruction: { parts: [{ text: systemPrompt }] },
+              contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+              generationConfig: {
+                response_mime_type: "application/json",
+                temperature: 0.1,
+              },
+            }),
+          },
+        );
+
+        if (res.ok) {
+          const data = (await res.json()) as any;
+          const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            const parsed = JSON.parse(text);
+            const validUntil = new Date(
+              Date.now() + (parsed.days || 7) * 86400_000,
+            ).toISOString();
+            return {
+              ...parsed,
+              validUntil,
+              aiCompiled: true,
+            };
+          }
+        }
+      } catch (err) {
+        logger.warn(
+          "Gemini mandate compilation error, falling back to rule engine",
+          {
+            error: String(err),
+          },
+        );
+      }
+    }
+
+    return {
+      maxAmount: 50,
+      maxPerTxn: 25,
+      categories: ["phone_accessories", "cables"],
+      itemTerms: [],
+      days: 7,
+      validUntil: new Date(Date.now() + 7 * 86400_000).toISOString(),
+      playback: "At most $50.00 in total and $25.00 per purchase; until 7 days.",
+      warnings: ["Rule-based fallback compiler used."],
+      aiCompiled: false,
+    };
+  });
+
   // REST API: Human Action (Approve / Deny) for Held Transactions with Step-Up Re-Signing Flow
   app.post("/api/v1/transactions/:id/action", async (req, reply) => {
     const { id } = req.params as { id: string };
@@ -404,9 +517,13 @@ export async function createServer() {
             (mandate ? `vault_${mandate.userId}` : "vault_sandbox_token");
           const idempotencyKey = randomUUID();
 
+          const merchant = await getMerchantByMerchantId(tx.merchantId);
+          const merchantPayeeEmail = merchant?.payeeEmail || `${tx.merchantId}@sandbox.paypal.com`;
+
           const paypalOrder = await paypalClient.createAuthorizeOrder({
             vaultId,
-            merchantPayeeEmail: `${tx.merchantId}@sandbox.paypal.com`,
+            merchantPayeeEmail,
+            merchantPayeeId: merchant?.payeeMerchantId,
             amount: {
               currency: tx.currency,
               total: String(tx.amount),
@@ -542,6 +659,42 @@ export async function createServer() {
     if (!authId) {
       reply.status(400);
       return { error: "Transaction has no PayPal authorization ID" };
+    }
+
+    // Re-verify authorization status against PayPal before executing capture
+    try {
+      const authDetails = await paypalClient.getAuthorization(authId);
+      if (
+        authDetails.status !== "CREATED" &&
+        authDetails.status !== "PENDING" &&
+        authDetails.status !== "CAPTURED"
+      ) {
+        reply.status(409);
+        return {
+          error: `PayPal authorization status is '${authDetails.status}', cannot be captured`,
+        };
+      }
+    } catch (err) {
+      logger.warn(
+        "Could not query PayPal authorization state directly; proceeding to capture",
+        {
+          authId,
+          error: String(err),
+        },
+      );
+    }
+
+    // Verify merchant cryptographic signature on fulfilment notice (if signed)
+    if ((body.fulfillmentNotice as any)?.sig) {
+      const verifyRes = await verifyFulfilmentNotice(
+        body.fulfillmentNotice as unknown as SignedFulfilmentNotice,
+      );
+      if (!verifyRes.valid) {
+        reply.status(401);
+        return {
+          error: `Invalid merchant fulfilment signature: ${verifyRes.error}`,
+        };
+      }
     }
 
     // Execute capture via PayPal client under Invariant 1

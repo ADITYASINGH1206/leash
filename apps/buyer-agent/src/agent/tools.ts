@@ -210,7 +210,33 @@ export class BuyerAgentTools {
       idempotencyKey: `idem_${randomUUID().replace(/-/g, "").substring(0, 16)}`,
     };
 
-    const result = await handleRequestPaymentTool(paymentRequest);
+    let result: MCPPaymentResult;
+    const gatewayUrl =
+      process.env.GATEWAY_URL ||
+      process.env.NEXT_PUBLIC_GATEWAY_URL ||
+      (typeof window === "undefined" && process.env.NODE_ENV !== "test"
+        ? "http://127.0.0.1:4000"
+        : "");
+
+    if (gatewayUrl && process.env.NODE_ENV !== "test") {
+      try {
+        const res = await fetch(`${gatewayUrl}/api/v1/payment/request`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(paymentRequest),
+        });
+        if (res.ok) {
+          result = (await res.json()) as MCPPaymentResult;
+        } else {
+          result = await handleRequestPaymentTool(paymentRequest);
+        }
+      } catch {
+        result = await handleRequestPaymentTool(paymentRequest);
+      }
+    } else {
+      result = await handleRequestPaymentTool(paymentRequest);
+    }
+
     this.state.lastPaymentResult = result;
 
     if (result.status === "AUTHORIZED") {

@@ -16,6 +16,7 @@
     "@leash/policy": "workspace:*",
     "@leash/provenance": "workspace:*",
     "@leash/shared": "workspace:*",
+    "@leash/stores": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.2.0",

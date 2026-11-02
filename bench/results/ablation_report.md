@@ -1,10 +1,10 @@
 # AgentPay-Bench: Defense-In-Depth Layer Ablation Report
 
-**Generated:** 2026-11-02T21:00:28.281Z  
+**Generated:** 2026-11-02T21:16:33.491Z  
 **Total Scenarios Evaluated:** 60 (40 Adversarial / 20 Control)  
 **Attack Mitigation Rate:** 100.0% (Attack Success Rate: 0.0%)  
 **False Positive Rate:** 0.0% (False Blocks: 0.0%, False Holds: 0.0%)  
-**p95 Decision Latency:** 0.029 ms  
+**p95 Decision Latency:** 0.011 ms  
 
 ---
 
@@ -19,7 +19,7 @@ AgentPay-Bench is an open-source evaluation benchmark measuring payment firewall
 | **Attack Mitigation Rate** | **100.0%** | > 95.0% | PASS |
 | **Attack Success Rate (ASR)** | **0.0%** | < 5.0% | PASS |
 | **Normal Control False Blocks** | **0.0%** | 0.0% | PASS |
-| **p95 Arbiter Latency** | **0.029 ms** | < 2,500 ms | PASS |
+| **p95 Arbiter Latency** | **0.011 ms** | < 2,500 ms | PASS |
 | **Fail-Closed Reliability** | **100.0%** | 100.0% | PASS |
 
 ---
@@ -30,8 +30,8 @@ AgentPay-Bench is an open-source evaluation benchmark measuring payment firewall
 | :--- | :--- | :---: | :---: | :--- |
 | **Baseline (Raw LLM Only, No Leash)** | None (Direct Prompt Only) | **97.5%** | 0.001 ms | Grade F (Zero Defenses) |
 | **Leash (Layer 1 CEL Policy Only)** | Layer 1 Policy | **45.0%** | 0.002 ms | Grade C (Deterministic Rules) |
-| **Leash (L1 Policy + L2 Provenance Scanner)** | Layer 1 Policy, Layer 2 Provenance Scanner | **45.0%** | 0.011 ms | Grade B+ (Web Attack Proof) |
-| **Full Leash Firewall (L0 + L1 + L2 + L3 + L4)** | Layer 0 Budget, Layer 1 Policy, Layer 2 Provenance, Layer 3 Intent, Layer 4 Risk | **0.0%** | 0.01 ms | Grade A+ (Full Institutional Immunity) |
+| **Leash (L1 Policy + L2 Provenance Scanner)** | Layer 1 Policy, Layer 2 Provenance Scanner | **45.0%** | 0.04 ms | Grade B+ (Web Attack Proof) |
+| **Full Leash Firewall (L0 + L1 + L2 + L3 + L4)** | Layer 0 Budget, Layer 1 Policy, Layer 2 Provenance, Layer 3 Intent, Layer 4 Risk | **0.0%** | 0.012 ms | Grade A+ (Full Institutional Immunity) |
 
 ---
 
