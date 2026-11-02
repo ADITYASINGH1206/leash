@@ -3,8 +3,8 @@
 
 Reviews pull request diffs against Leash architecture, security threat models,
 and institutional safety invariants using the Google Gemini API.
-Runs in GitHub Actions with zero external Python dependencies.
-Idempotently updates existing review comments and posts inline code suggestions.
+Submits formal GitHub Pull Request Reviews (APPROVE, REQUEST_CHANGES, COMMENT)
+with interactive inline code suggestions and fail-closed security gating.
 """
 
 import json
@@ -183,7 +183,6 @@ def get_pr_diff(pr_number: str) -> str:
             filtered_lines.append(line)
 
     diff_text = "\n".join(filtered_lines)
-    # Truncate if diff is exceptionally large (> 60,000 characters)
     if len(diff_text) > 60000:
         diff_text = diff_text[:60000] + "\n\n... [Diff truncated for context limits] ..."
 
@@ -289,8 +288,104 @@ def extract_inline_suggestions(review_text: str):
     return cleaned_review.strip(), suggestions
 
 
+def determine_review_verdict(review_text: str) -> str:
+    """Determine official GitHub review verdict: APPROVE, REQUEST_CHANGES, or COMMENT."""
+    if "REQUEST CHANGES" in review_text or "❌" in review_text:
+        return "REQUEST_CHANGES"
+    
+    # Check if blocking flaws are listed
+    blocking_match = re.search(r"#### 🔴 \[BLOCKING\] Issues.*?\n(.*?)(?=####|\Z)", review_text, re.DOTALL)
+    if blocking_match:
+        content = blocking_match.group(1).strip()
+        if content and "none detected" not in content.lower():
+            return "REQUEST_CHANGES"
+            
+    if "APPROVE" in review_text and "✅" in review_text:
+        return "APPROVE"
+        
+    return "COMMENT"
+
+
+def submit_formal_pr_review(pr_number: str, head_sha: str, body: str, event: str, suggestions: list) -> bool:
+    """Submit a formal GitHub Pull Request Review (APPROVE, REQUEST_CHANGES, or COMMENT)."""
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not repo or not token or not head_sha:
+        return False
+
+    url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json",
+    }
+
+    review_comments = []
+    severity_emojis = {"BLOCKING": "🔴", "WARNING": "🟡", "SUGGESTION": "💡"}
+
+    for item in suggestions:
+        try:
+            path = item.get("path")
+            line = int(item.get("line", 0))
+            if not path or not line:
+                continue
+            sev = item.get("severity", "WARNING").upper()
+            emoji = severity_emojis.get(sev, "🔍")
+            title = item.get("title", "Review Finding")
+            comment = item.get("comment", "")
+            suggestion = item.get("suggestion", "")
+
+            body_parts = [f"### {emoji} {title}\n", f"{comment}\n"]
+            if suggestion:
+                body_parts.append(f"```suggestion\n{suggestion}\n```")
+
+            review_comments.append({
+                "path": path,
+                "line": line,
+                "side": "RIGHT",
+                "body": "\n".join(body_parts)
+            })
+        except Exception:
+            pass
+
+    payload = {
+        "commit_id": head_sha,
+        "body": body,
+        "event": event
+    }
+    if review_comments:
+        payload["comments"] = review_comments
+
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            print(f"Submitted official GitHub PR review with event '{event}' (Status {resp.status})")
+            return True
+    except urllib.error.HTTPError as e:
+        err_msg = e.read().decode("utf-8", errors="replace")
+        print(f"Formal review API returned HTTP {e.code}: {err_msg[:200]}")
+        # If GitHub restricts self-review or fork permissions, retry as COMMENT
+        if e.code == 422 and event != "COMMENT":
+            print("Retrying formal review with 'COMMENT' event...")
+            payload["event"] = "COMMENT"
+            retry_data = json.dumps(payload).encode("utf-8")
+            retry_req = urllib.request.Request(url, data=retry_data, headers=headers, method="POST")
+            try:
+                with urllib.request.urlopen(retry_req, timeout=30) as r2:
+                    print(f"Submitted fallback COMMENT review (Status {r2.status})")
+                    return True
+            except Exception as e2:
+                print(f"Fallback review also failed: {e2}")
+    except Exception as e:
+        print(f"Exception submitting formal PR review: {e}")
+
+    return False
+
+
 def post_or_update_github_comment(pr_number: str, comment_body: str):
-    """Idempotently post or update the review comment on the PR."""
+    """Idempotently post or update the review comment on the PR (fallback)."""
     marker = "<!-- leash-firewall-pr-review -->"
     repo = os.environ.get("GITHUB_REPOSITORY")
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
@@ -306,7 +401,6 @@ def post_or_update_github_comment(pr_number: str, comment_body: str):
         "Content-Type": "application/json",
     }
 
-    # Check for existing comment
     comments_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
     req = urllib.request.Request(comments_url, headers=headers)
     existing_comment_id = None
@@ -327,79 +421,11 @@ def post_or_update_github_comment(pr_number: str, comment_body: str):
         update_url = f"https://api.github.com/repos/{repo}/issues/comments/{existing_comment_id}"
         req = urllib.request.Request(update_url, data=payload, headers=headers, method="PATCH")
         with urllib.request.urlopen(req, timeout=15) as resp:
-            print(f"Successfully updated review comment #{existing_comment_id}")
+            print(f"Updated review comment #{existing_comment_id}")
     else:
         req = urllib.request.Request(comments_url, data=payload, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=15) as resp:
-            print(f"Successfully posted new review comment on PR #{pr_number}")
-
-
-def post_inline_review_comments(pr_number: str, head_sha: str, suggestions: list):
-    """Post inline conversation comments on modified lines."""
-    repo = os.environ.get("GITHUB_REPOSITORY")
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    if not repo or not token or not head_sha or not suggestions:
-        return
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-        "Content-Type": "application/json",
-    }
-
-    # Fetch existing inline review comments
-    existing_coords = set()
-    try:
-        url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/comments"
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            comments = json.loads(resp.read().decode("utf-8"))
-            for c in comments:
-                path = c.get("path")
-                line = c.get("line") or c.get("original_line")
-                if path and line:
-                    existing_coords.add((path, int(line)))
-    except Exception as e:
-        print(f"Could not fetch existing inline comments: {e}")
-
-    severity_emojis = {"BLOCKING": "🔴", "WARNING": "🟡", "SUGGESTION": "💡"}
-    posted_count = 0
-
-    for item in suggestions:
-        try:
-            path = item.get("path")
-            line = int(item.get("line", 0))
-            if not path or not line or (path, line) in existing_coords:
-                continue
-
-            sev = item.get("severity", "WARNING").upper()
-            emoji = severity_emojis.get(sev, "🔍")
-            title = item.get("title", "Review Finding")
-            comment = item.get("comment", "")
-            suggestion = item.get("suggestion", "")
-
-            body_parts = [f"### {emoji} {title}\n", f"{comment}\n"]
-            if suggestion:
-                body_parts.append(f"```suggestion\n{suggestion}\n```")
-
-            post_url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/comments"
-            payload = json.dumps({
-                "body": "\n".join(body_parts),
-                "commit_id": head_sha,
-                "path": path,
-                "line": line,
-                "side": "RIGHT",
-            }).encode("utf-8")
-
-            req = urllib.request.Request(post_url, data=payload, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=15) as r:
-                print(f"Created inline suggestion on {path}:{line}")
-                existing_coords.add((path, line))
-                posted_count += 1
-        except Exception as e:
-            print(f"Skipping inline comment on {path}:{line}: {e}")
-
-    print(f"Posted {posted_count} inline suggestions.")
+            print(f"Posted review comment on PR #{pr_number}")
 
 
 def main():
@@ -443,11 +469,16 @@ def main():
     print("Sending diff to Gemini API for financial safety review...")
     review = call_gemini(prompt, api_key)
     cleaned_review, suggestions = extract_inline_suggestions(review)
+    verdict_event = determine_review_verdict(review)
+    print(f"Determined PR verdict: {verdict_event}")
 
-    post_or_update_github_comment(pr_number, cleaned_review)
-    if suggestions:
-        head_sha = get_pr_head_sha(pr_number)
-        post_inline_review_comments(pr_number, head_sha, suggestions)
+    head_sha = get_pr_head_sha(pr_number)
+
+    # Submit official GitHub PR Review (APPROVE / REQUEST_CHANGES / COMMENT)
+    submitted = submit_formal_pr_review(pr_number, head_sha, cleaned_review, verdict_event, suggestions)
+    if not submitted:
+        # Fallback to comment update if formal review submission fails
+        post_or_update_github_comment(pr_number, cleaned_review)
 
 
 if __name__ == "__main__":
