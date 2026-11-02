@@ -24,6 +24,37 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.5)
 
+  apps/buyer-agent:
+    dependencies:
+      '@leash/gateway':
+        specifier: workspace:*
+        version: link:../gateway
+      '@leash/mandates':
+        specifier: workspace:*
+        version: link:../../packages/mandates
+      '@leash/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@leash/stores':
+        specifier: workspace:*
+        version: link:../stores
+      fastify:
+        specifier: ^5.2.0
+        version: 5.12.7
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.1
+        version: 22.20.5
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.5)
+
   apps/console:
     dependencies:
       '@leash/mandates':

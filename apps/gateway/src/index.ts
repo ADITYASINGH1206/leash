@@ -11,7 +11,8 @@ import { jobRunner } from "./jobs/index.js";
 
 export * from "./arbiter/index.js";
 export * from "./jobs/index.js";
-
+export * from "./db/budget-mutex.js";
+export * from "./db/repository.js";
 
 export async function createServer() {
   const app = Fastify({ logger: false });
@@ -156,6 +157,7 @@ export async function createServer() {
       body.action === "APPROVE"
         ? LEDGER_EVENT_KINDS.USER_APPROVAL
         : LEDGER_EVENT_KINDS.USER_DENIAL;
+
 
     if (body.action === "DENY" && tx.mandateId) {
       await releaseReservedBudget(tx.mandateId, Number(tx.amount));
@@ -368,6 +370,17 @@ export async function createServer() {
   return app;
 }
 
+export {
+  handleRequestPaymentTool,
+  createMcpServer,
+  type MCPPaymentResult,
+} from "./mcp/index.js";
+
+export {
+  seedInMemoryMandate,
+  getInMemoryMandate,
+  type InMemoryMandateRecord,
+} from "./db/budget-mutex.js";
 if (process.env.NODE_ENV !== "test") {
   const app = await createServer();
   app.listen({ port: config.port, host: "0.0.0.0" }, (err, address) => {
