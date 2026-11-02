@@ -47,6 +47,29 @@ seedInMemoryMandate({
   id: "mandate_default_demo",
   maxAmount: 250.0,
   spentAmount: 0.0,
+  intentText: "Buy accessories, apparel, groceries, or essentials under budget",
+  playback: "Authorized spending for daily items under $250",
+  constraints: {
+    maxTotal: "250.00",
+    maxPerTxn: "250.00",
+    currency: "USD",
+    categories: [
+      "phone_accessories",
+      "cables",
+      "chargers",
+      "apparel",
+      "grocery",
+    ],
+    itemTerms: [
+      "case",
+      "cable",
+      "charger",
+      "tee",
+      "hoodie",
+      "coffee",
+      "beans",
+    ],
+  },
 });
 
 /**
@@ -289,7 +312,12 @@ export function createMcpServer(): Server {
                 type: "text",
                 text: JSON.stringify({
                   status: "HELD",
-                  holdReason: `Schema validation error: ${err instanceof Error ? err.message : String(err)}`,
+                  error:
+                    err instanceof Error
+                      ? err.message
+                      : "Failed to parse PaymentRequest payload",
+                  holdReason:
+                    "Validation error: PaymentRequest payload does not match schema",
                 }),
               },
             ],
@@ -299,35 +327,42 @@ export function createMcpServer(): Server {
       }
 
       if (name === "check_mandate_budget") {
-        const mandateId = (args as { mandateId?: string })?.mandateId || "";
+        const { mandateId } = (args ?? {}) as { mandateId?: string };
+        if (!mandateId) {
+          return {
+            content: [{ type: "text", text: "Missing required mandateId" }],
+            isError: true,
+          };
+        }
+
         const mandate = getInMemoryMandate(mandateId);
         if (!mandate) {
           return {
             content: [
-              {
-                type: "text",
-                text: JSON.stringify({
-                  error: `Mandate '${mandateId}' not found`,
-                }),
-              },
+              { type: "text", text: `Mandate '${mandateId}' not found` },
             ],
             isError: true,
           };
         }
+
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                id: mandate.id,
-                maxAmount: mandate.maxAmount,
-                spentAmount: mandate.spentAmount,
-                remainingBudget: (
-                  mandate.maxAmount - mandate.spentAmount
-                ).toFixed(2),
-                status: mandate.status,
-                validUntil: mandate.validUntil.toISOString(),
-              }),
+              text: JSON.stringify(
+                {
+                  id: mandate.id,
+                  maxAmount: mandate.maxAmount,
+                  spentAmount: mandate.spentAmount,
+                  remainingBudget: (
+                    mandate.maxAmount - mandate.spentAmount
+                  ).toFixed(2),
+                  status: mandate.status,
+                  validUntil: mandate.validUntil.toISOString(),
+                },
+                null,
+                2,
+              ),
             },
           ],
         };
@@ -340,18 +375,30 @@ export function createMcpServer(): Server {
           content: [
             {
               type: "text",
-              text: JSON.stringify({
-                valid: verification.valid,
-                totalEvents: rows.length,
-                brokenSeq: verification.brokenSeq,
-                reason: verification.reason,
-              }),
+              text: JSON.stringify(
+                {
+                  valid: verification.valid,
+                  totalEvents: rows.length,
+                  brokenSeq: verification.brokenSeq,
+                  reason: verification.reason,
+                },
+                null,
+                2,
+              ),
             },
           ],
         };
       }
 
-      throw new Error(`Unknown tool: ${name}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Tool '${name}' not implemented`,
+          },
+        ],
+        isError: true,
+      };
     },
   );
 

@@ -157,7 +157,7 @@ describe("Layer 0-4 Decision Aggregator & Fail-Closed Arbiter (Issue #13)", () =
     const judgeReason = decision.reasons.find((r) => r.layer === "intent");
     expect(judgeReason).toBeDefined();
     expect(judgeReason?.verdict).toBe("BLOCK");
-    expect(judgeReason?.code).toBe("INTENT_INCONSISTENT");
+    expect(judgeReason?.code).toBe("INTENT_MISALIGNMENT_BLOCKED");
   });
 
   it("Layer 4: blocks when transaction anomaly score exceeds 70", async () => {

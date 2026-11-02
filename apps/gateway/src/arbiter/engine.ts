@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { PaymentRequest, IntentMandate } from "@leash/mandates";
-import { evaluateIntentAlignment } from "@leash/mandates";
+import { evaluateIntentAlignment, calibrateJudgeVerdict } from "@leash/mandates";
 import { PolicyEngine } from "@leash/policy";
 import { ProvenanceScanner } from "@leash/provenance";
 import {
@@ -315,41 +315,64 @@ export class DecisionArbiter {
     const memMandate = getInMemoryMandate(req.mandateId);
     const intentText =
       dbMandate?.intentText ||
-      (memMandate as unknown as { intentText?: string })?.intentText ||
+      memMandate?.intentText ||
       "Authorized shopping purchase";
+    const playback =
+      memMandate?.playback ||
+      `User authorized shopping for ${intentText}`;
     const maxTotalStr = dbMandate?.maxAmount
       ? String(dbMandate.maxAmount)
       : memMandate
         ? String(memMandate.maxAmount)
         : "250.00";
 
+    const constraints = memMandate?.constraints
+      ? {
+          currency: memMandate.constraints.currency || req.cart.currency,
+          maxTotal: memMandate.constraints.maxTotal || maxTotalStr,
+          maxPerTxn: memMandate.constraints.maxPerTxn || maxTotalStr,
+          maxTxnCount: 10,
+          categories: memMandate.constraints.categories || [],
+          itemTerms: memMandate.constraints.itemTerms || [],
+          merchantAllow: [],
+          merchantBlock: [],
+          approvalAbove: undefined,
+          expiresAt: (
+            dbMandate?.validUntil ||
+            memMandate.validUntil ||
+            new Date(Date.now() + 86400000)
+          ).toISOString(),
+        }
+      : {
+          currency: req.cart.currency,
+          maxTotal: maxTotalStr,
+          maxPerTxn: maxTotalStr,
+          maxTxnCount: 10,
+          categories: [],
+          itemTerms: [],
+          merchantAllow: [],
+          merchantBlock: [],
+          approvalAbove: undefined,
+          expiresAt: (
+            dbMandate?.validUntil ||
+            memMandate?.validUntil ||
+            new Date(Date.now() + 86400000)
+          ).toISOString(),
+        };
+
     const mandateForJudge: IntentMandate = {
       id: req.mandateId,
       userId: dbMandate?.userId || "usr_default",
       agentId: "agt_shopping",
       intentText,
-      playback: `User authorized shopping for ${intentText} with budget $${maxTotalStr}`,
-      constraints: {
-        currency: req.cart.currency,
-        maxTotal: maxTotalStr,
-        maxPerTxn: maxTotalStr,
-        maxTxnCount: 10,
-        categories: [],
-        itemTerms: [],
-        merchantAllow: [],
-        merchantBlock: [],
-        approvalAbove: undefined,
-        expiresAt: (
-          dbMandate?.validUntil ||
-          memMandate?.validUntil ||
-          new Date(Date.now() + 86400000)
-        ).toISOString(),
-      },
+      playback,
+      constraints,
       nonce: `nonce_${randomUUID().replace(/-/g, "")}`,
     };
 
     const isNovelMerchant = !knownMerchants.includes(req.cart.merchantId);
-    const noveltyScore = options.noveltyScore ?? (isNovelMerchant ? 0.9 : 0.1);
+    const noveltyScore =
+      options.noveltyScore ?? (isNovelMerchant ? 0.9 : 0.1);
 
     // Concurrently trigger Layer 2, Layer 3, and Layer 4 with fail-safe wrappers
     const [provSettled, judgeSettled, riskSettled] = await Promise.allSettled([
@@ -379,6 +402,7 @@ export class DecisionArbiter {
             mandate: mandateForJudge,
             cart: req.cart,
             rawRationale: req.rationale,
+            toolCallSummary: req.evidence.map((e) => `CRAWL_EVIDENCE: ${e.url}`),
           },
           {
             llmInvoker: options.llmInvoker,
@@ -386,27 +410,12 @@ export class DecisionArbiter {
           },
         );
         const jDuration = Date.now() - jStart;
-
-        // Judge Aggregation Matrix:
-        // - inconsistent or score >= 0.8 -> BLOCK
-        // - unsure or 0.4 <= score < 0.8 -> HOLD
-        // - consistent and score < 0.4 -> ALLOW
-        let verdict: DecisionVerdict = "ALLOW";
-        if (res.verdict === "inconsistent" || res.score >= 0.8) {
-          verdict = "BLOCK";
-        } else if (res.verdict === "unsure" || res.score >= 0.4) {
-          verdict = "HOLD";
-        }
+        const calibratedIntent = calibrateJudgeVerdict(res);
 
         return {
           layer: "intent",
-          verdict,
-          code:
-            verdict === "BLOCK"
-              ? "INTENT_INCONSISTENT"
-              : verdict === "HOLD"
-                ? "INTENT_UNSURE"
-                : "INTENT_CONSISTENT",
+          verdict: calibratedIntent.decision,
+          code: calibratedIntent.actionCode,
           message: res.reason,
           durationMs: jDuration,
           raw: res,

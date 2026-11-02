@@ -10,6 +10,9 @@ import { closeDb } from "./db/connection.js";
 
 export * from "./arbiter/index.js";
 
+export * from './arbiter/index.js';
+
+
 export async function createServer() {
   const app = Fastify({ logger: false });
   const mcpServer = createMcpServer();
