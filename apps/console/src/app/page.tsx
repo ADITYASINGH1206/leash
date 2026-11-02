@@ -12,7 +12,9 @@ import {
   Lock,
   Layers,
   Cpu,
+  Smartphone,
 } from 'lucide-react';
+import Link from 'next/link';
 import { LedgerGrid } from '../components/LedgerGrid';
 import { LiveDecisionFeed } from '../components/LiveDecisionFeed';
 import { MandateStudio } from '../components/MandateStudio';
@@ -146,6 +148,15 @@ export default function ConsolePage() {
               <Bot className="w-3.5 h-3.5" />
               <span>Copilot</span>
             </button>
+
+            <Link
+              href="/approvals"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono transition-colors text-saffron-light hover:text-saffron bg-saffron-500/10 border border-saffron-500/30 font-medium"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-saffron-light" />
+              <span>Mobile Approvals</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-saffron-400 animate-ping" />
+            </Link>
           </nav>
 
           {/* Status Badges */}

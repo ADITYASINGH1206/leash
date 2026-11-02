@@ -6,6 +6,13 @@ import {
   GENESIS_HASH,
 } from './lib/crypto';
 import { getFallbackLedgerFixture } from './lib/api';
+import {
+  getOrCreateDeviceKey,
+  getDevicePublicKeyBase64,
+  getDeviceKeyFingerprint,
+  signApprovalPayload,
+  verifyDeviceSignature,
+} from './lib/device-wallet';
 
 describe('Leash Console: Cryptographic Verification & Audit Rails (Issue #17)', () => {
   it('canonicalJson deterministically sorts keys per RFC 8785', () => {
@@ -94,5 +101,72 @@ describe('Leash Console: Cryptographic Verification & Audit Rails (Issue #17)', 
       expect(fixture[i]?.seq).toBe(i + 1);
       expect(fixture[i]?.prevHash).toBe(fixture[i - 1]?.hash);
     }
+  });
+});
+
+describe('Mobile Approvals PWA: Device Wallet & WebCrypto Step-Up Re-Signing (Issue #14)', () => {
+  it('generates an ECDSA P-256 key pair and exports valid SPKI base64 public key', async () => {
+    const keyPair = await getOrCreateDeviceKey();
+    expect(keyPair).toBeDefined();
+    expect(keyPair.privateKey).toBeDefined();
+    expect(keyPair.publicKey).toBeDefined();
+    expect(keyPair.publicKey.algorithm.name).toBe('ECDSA');
+
+    const pubKeyBase64 = await getDevicePublicKeyBase64(keyPair);
+    expect(typeof pubKeyBase64).toBe('string');
+    expect(pubKeyBase64.length).toBeGreaterThan(50);
+  });
+
+  it('computes human-friendly device key fingerprint', async () => {
+    const keyPair = await getOrCreateDeviceKey();
+    const fingerprint = await getDeviceKeyFingerprint(keyPair);
+
+    expect(fingerprint).toMatch(/^key_[a-f0-9]{6}\.\.\.[a-f0-9]{4}$/);
+  });
+
+  it('signs canonical approval payload and verifies valid WebCrypto ECDSA signature', async () => {
+    const reSigned = await signApprovalPayload({
+      transactionId: 'tx_hold_stepup_123',
+      mandateId: 'mandate_default_demo',
+      approvedAmount: '45.00',
+      currency: 'USD',
+      nonce: 'nonce_test_abc123',
+      timestamp: '2026-11-02T16:30:00.000Z',
+    });
+
+    expect(reSigned.signature).toBeDefined();
+    expect(reSigned.publicKey).toBeDefined();
+    expect(reSigned.signedPayload.transactionId).toBe('tx_hold_stepup_123');
+    expect(reSigned.signedPayload.approvedAmount).toBe('45.00');
+
+    // Verify valid signature
+    const isValid = await verifyDeviceSignature(
+      reSigned.publicKey,
+      reSigned.signature,
+      reSigned.signedPayload
+    );
+    expect(isValid).toBe(true);
+  });
+
+  it('rejects tampered approval payload during signature verification (Fail-Closed)', async () => {
+    const reSigned = await signApprovalPayload({
+      transactionId: 'tx_hold_stepup_tamper',
+      mandateId: 'mandate_default_demo',
+      approvedAmount: '45.00',
+      currency: 'USD',
+    });
+
+    // Adversary tampers with the approved amount
+    const tamperedPayload = {
+      ...reSigned.signedPayload,
+      approvedAmount: '500.00',
+    };
+
+    const isValid = await verifyDeviceSignature(
+      reSigned.publicKey,
+      reSigned.signature,
+      tamperedPayload
+    );
+    expect(isValid).toBe(false);
   });
 });

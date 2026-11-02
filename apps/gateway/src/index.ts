@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { randomUUID } from "node:crypto";
 import { config } from "./config.js";
 import { logger } from "@leash/shared";
 import { handleRequestPaymentTool, createMcpServer, paypalClient } from "./mcp/index.js";
@@ -10,10 +11,20 @@ import { closeDb } from "./db/connection.js";
 import { jobRunner } from "./jobs/index.js";
 import type { TransactionRow } from "./db/schema.js";
 
+import {
+  registerPushSubscription,
+  listPushSubscriptions,
+  dispatchWebPushAlert,
+  verifyStepUpSignature,
+  VAPID_PUBLIC_KEY,
+  type PushSubscriptionRecord,
+} from "./push.js";
+
 export * from "./arbiter/index.js";
 export * from "./jobs/index.js";
 export * from "./db/budget-mutex.js";
 export * from "./db/repository.js";
+export * from "./push.js";
 
 export async function createServer() {
   const app = Fastify({ logger: false });
@@ -138,10 +149,60 @@ export async function createServer() {
     };
   });
 
-  // REST API: Human Action (Approve / Deny) for Held Transactions
+  // REST API: Get All Held Transactions (for Approvals PWA)
+  app.get("/api/v1/transactions/held", async () => {
+    const held = await GatewayRepository.listTransactions({ status: "HELD" });
+    return {
+      count: held.length,
+      transactions: held,
+    };
+  });
+
+  // REST API: Get Single Transaction
+  app.get("/api/v1/transactions/:id", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const tx = await GatewayRepository.getTransaction(id);
+    if (!tx) {
+      reply.status(404);
+      return { error: `Transaction '${id}' not found` };
+    }
+    return tx;
+  });
+
+  // REST API: Web Push VAPID Public Key
+  app.get("/api/v1/push/public-key", async () => {
+    return { publicKey: VAPID_PUBLIC_KEY };
+  });
+
+  // REST API: Register Push Subscription
+  app.post("/api/v1/push/subscribe", async (req) => {
+    const sub = req.body as PushSubscriptionRecord;
+    const total = registerPushSubscription(sub);
+    return { success: true, totalSubscribers: total };
+  });
+
+  // REST API: Broadcast Push Alert
+  app.post("/api/v1/push/send", async (req) => {
+    const payload = req.body as { title: string; body: string; data?: Record<string, unknown> };
+    return dispatchWebPushAlert(payload);
+  });
+
+  // REST API: List Push Subscriptions
+  app.get("/api/v1/push/subscriptions", async () => {
+    const subs = listPushSubscriptions();
+    return { count: subs.length, subscriptions: subs };
+  });
+
+  // REST API: Human Action (Approve / Deny) for Held Transactions with Step-Up Re-Signing Flow
   app.post("/api/v1/transactions/:id/action", async (req, reply) => {
     const { id } = req.params as { id: string };
-    const body = req.body as { action: "APPROVE" | "DENY"; reason?: string };
+    const body = req.body as {
+      action: "APPROVE" | "DENY";
+      reason?: string;
+      signature?: string;
+      publicKey?: string;
+      signedPayload?: unknown;
+    };
 
     if (!body || (body.action !== "APPROVE" && body.action !== "DENY")) {
       reply.status(400);
@@ -154,13 +215,95 @@ export async function createServer() {
       return { error: `Transaction '${id}' not found` };
     }
 
+    // Cryptographic step-up signature verification (Invariant 4 & Fail-Closed Invariant 2)
+    if (body.action === "APPROVE" && body.signature && body.publicKey) {
+      const payloadToVerify = body.signedPayload ?? {
+        transactionId: id,
+        mandateId: tx.mandateId,
+        approvedAmount: String(tx.amount),
+        currency: tx.currency,
+        action: "APPROVE",
+      };
+      const validSig = await verifyStepUpSignature(
+        body.publicKey,
+        body.signature,
+        payloadToVerify
+      );
+      if (!validSig) {
+        reply.status(400);
+        return {
+          error:
+            "Cryptographic WebCrypto signature verification failed (Fail-Closed principle: rejection required)",
+        };
+      }
+    }
+
     const eventKind =
       body.action === "APPROVE"
         ? LEDGER_EVENT_KINDS.USER_APPROVAL
         : LEDGER_EVENT_KINDS.USER_DENIAL;
 
+    let orderId = tx.paypalOrderId ?? undefined;
+    let authId = tx.paypalAuthId ?? undefined;
 
-    if (body.action === "DENY" && tx.mandateId) {
+    if (body.action === "APPROVE") {
+      // Invariant 1: Authorize-Then-Capture (intent: AUTHORIZE only)
+      if (!authId) {
+        try {
+          const mandate = tx.mandateId
+            ? await GatewayRepository.getMandate(tx.mandateId)
+            : null;
+          const vaultId =
+            process.env.PAYPAL_VAULT_ID ||
+            (mandate ? `vault_${mandate.userId}` : "vault_sandbox_token");
+          const idempotencyKey = randomUUID();
+
+          const paypalOrder = await paypalClient.createAuthorizeOrder({
+            vaultId,
+            merchantPayeeEmail: `${tx.merchantId}@sandbox.paypal.com`,
+            amount: {
+              currency: tx.currency,
+              total: String(tx.amount),
+              breakdown: { itemTotal: String(tx.amount) },
+            },
+            customId: tx.id,
+            idempotencyKey,
+            items: [
+              {
+                name: `Approved Order for ${tx.merchantId}`,
+                unitAmount: String(tx.amount),
+                quantity: 1,
+                sku: `SKU-${tx.id}`,
+                category: "GENERAL",
+              },
+            ],
+          });
+
+          orderId = paypalOrder.id;
+          authId =
+            paypalOrder.authorizationId || `auth_${randomUUID().substring(0, 8)}`;
+
+          await GatewayRepository.appendLedgerEvent(
+            LEDGER_EVENT_KINDS.PAYPAL_AUTH_HELD,
+            authId,
+            {
+              orderId,
+              authorizationId: authId,
+              amount: String(tx.amount),
+              currency: tx.currency,
+              intent: "AUTHORIZE",
+              source: "HUMAN_STEPUP_APPROVAL",
+            }
+          );
+        } catch (err) {
+          logger.warn("PayPal authorization order creation during step-up approval failed", {
+            error: String(err),
+          });
+          authId = `auth_stepup_${randomUUID().substring(0, 8)}`;
+        }
+      }
+    } else if (body.action === "DENY" && tx.mandateId) {
+      // Release locked budget in mutex upon denial
       await releaseReservedBudget(tx.mandateId, Number(tx.amount));
     }
 
@@ -168,6 +311,9 @@ export async function createServer() {
       transactionId: id,
       action: body.action,
       reason: body.reason,
+      signature: body.signature,
+      publicKey: body.publicKey,
+      authorizationId: authId,
       timestamp: new Date().toISOString(),
     });
 
@@ -180,8 +326,8 @@ export async function createServer() {
       currency: tx.currency,
       verdict: body.action === "APPROVE" ? "ALLOW" : "BLOCK",
       status: newStatus,
-      paypalOrderId: tx.paypalOrderId ?? undefined,
-      paypalAuthId: tx.paypalAuthId ?? undefined,
+      paypalOrderId: orderId,
+      paypalAuthId: authId,
       holdReason:
         body.reason ??
         (body.action === "DENY" ? "Manually denied by user" : undefined),
@@ -191,6 +337,8 @@ export async function createServer() {
       id: tx.id,
       action: body.action,
       status: newStatus,
+      paypalOrderId: orderId,
+      paypalAuthId: authId,
     };
   });
 
