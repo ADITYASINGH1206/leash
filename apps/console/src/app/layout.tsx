@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: '🛡️ Leash: a payment firewall for AI agents',
+    default: 'Leash',
     template: '%s | Leash',
   },
   description:
