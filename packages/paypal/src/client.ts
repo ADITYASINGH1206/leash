@@ -252,13 +252,22 @@ export class PayPalClient {
         },
       ],
       ...(req.vaultId && req.vaultId !== 'vault_sandbox_token' && req.vaultId !== 'vault_placeholder' && !req.vaultId.startsWith('vault_mock')
-        ? {
-            payment_source: {
-              paypal: {
-                vault_id: req.vaultId,
+        ? req.vaultId.startsWith('B-') || req.vaultId.startsWith('BA-')
+          ? {
+              payment_source: {
+                token: {
+                  id: req.vaultId,
+                  type: 'BILLING_AGREEMENT',
+                },
               },
-            },
-          }
+            }
+          : {
+              payment_source: {
+                paypal: {
+                  vault_id: req.vaultId,
+                },
+              },
+            }
         : {}),
     };
 
