@@ -107,6 +107,10 @@ export class LedgerService {
     return this.rows;
   }
 
+  loadRows(rows: readonly LedgerRow[]): void {
+    this.rows = [...rows];
+  }
+
   append(kind: LedgerEventKind, refId: string, payload: Record<string, unknown>): LedgerRow {
     const prevHash = this.latestHash;
     const seq = this.rows.length + 1;

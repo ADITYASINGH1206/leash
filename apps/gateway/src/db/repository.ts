@@ -50,6 +50,21 @@ export class GatewayRepository {
   }
 
   /**
+   * Seeds demo state (ledger chain and sample transactions) in memory mode if empty
+   */
+  static seedDemoState(
+    rows: readonly LedgerRow[],
+    txs: readonly TransactionRow[]
+  ): void {
+    if (inMemoryLedgerService.rowCount === 0) {
+      inMemoryLedgerService.loadRows(rows);
+      for (const tx of txs) {
+        inMemoryTransactions.set(tx.id, tx);
+      }
+    }
+  }
+
+  /**
    * Appends an event to the tamper-evident ledger
    */
   static async appendLedgerEvent(
