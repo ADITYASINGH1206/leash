@@ -231,9 +231,9 @@ export class PayPalClient {
                 }
               : {}),
           },
-          ...(req.merchantPayeeEmail
+          ...(req.merchantPayeeEmail && !req.merchantPayeeEmail.endsWith('@sandbox.paypal.com')
             ? { payee: { email_address: req.merchantPayeeEmail } }
-            : req.merchantPayeeId
+            : req.merchantPayeeId && /^[A-Z0-9]{13}$/.test(req.merchantPayeeId)
               ? { payee: { merchant_id: req.merchantPayeeId } }
               : {}),
           items: req.items.map((item) => ({
@@ -244,15 +244,22 @@ export class PayPalClient {
             },
             quantity: String(item.quantity),
             sku: item.sku,
-            category: item.category || 'PHYSICAL_GOODS',
+            category:
+              item.category === 'DIGITAL_GOODS' || item.category === 'DONATION'
+                ? item.category
+                : 'PHYSICAL_GOODS',
           })),
         },
       ],
-      payment_source: {
-        paypal: {
-          vault_id: req.vaultId,
-        },
-      },
+      ...(req.vaultId && !req.vaultId.startsWith('vault_')
+        ? {
+            payment_source: {
+              paypal: {
+                vault_id: req.vaultId,
+              },
+            },
+          }
+        : {}),
     };
 
     const response = await fetch(`${this.baseUrl}/v2/checkout/orders`, {
