@@ -3,7 +3,7 @@ services:
   - type: web
     name: leash-gateway
     env: node
-    plan: standard
+    plan: free
     buildCommand: pnpm install --ignore-scripts && pnpm build
     startCommand: node apps/gateway/dist/server.js
     envVars:
@@ -36,7 +36,7 @@ services:
   - type: web
     name: leash-console
     env: node
-    plan: standard
+    plan: free
     buildCommand: pnpm install --ignore-scripts && pnpm build
     startCommand: pnpm --filter=@leash/console start
     envVars:
@@ -52,7 +52,7 @@ services:
   - type: web
     name: leash-buyer-agent
     env: node
-    plan: standard
+    plan: free
     buildCommand: pnpm install --ignore-scripts && pnpm build
     startCommand: node apps/buyer-agent/dist/index.js
     envVars:
@@ -68,7 +68,7 @@ services:
   - type: web
     name: leash-stores
     env: node
-    plan: standard
+    plan: free
     buildCommand: pnpm install --ignore-scripts && pnpm build
     startCommand: node apps/stores/dist/index.js
     envVars:
@@ -79,7 +79,7 @@ services:
   - type: web
     name: leash-ml
     env: python
-    plan: standard
+    plan: free
     buildCommand: pip install -r services/ml/requirements.txt
     startCommand: uvicorn services.ml.main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -89,5 +89,5 @@ services:
 databases:
   # Managed PostgreSQL for Tamper-Evident Ledger & Mutex Budget Locking
   - name: leash-db
-    plan: standard
+    plan: free
     postgresMajorVersion: 16
