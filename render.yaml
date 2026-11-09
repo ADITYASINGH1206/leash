@@ -64,6 +64,17 @@ services:
           name: leash-gateway
           property: host
 
+  # Demo Storefronts (GadgetHub, TrendBoutique, DailyMart)
+  - type: web
+    name: leash-stores
+    env: node
+    plan: standard
+    buildCommand: pnpm install --ignore-scripts && pnpm build
+    startCommand: node apps/stores/dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+
   # Python ML Anomaly Service (Layer 4 Isolation Forest & Classifier)
   - type: web
     name: leash-ml

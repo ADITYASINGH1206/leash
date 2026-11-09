@@ -132,7 +132,7 @@ export async function createBuyerAgentServer() {
 
 // Start server if executed directly
 if (process.env.NODE_ENV !== "test") {
-  const port = Number(process.env.BUYER_AGENT_PORT || 4001);
+  const port = Number(process.env.PORT || process.env.BUYER_AGENT_PORT || 4001);
   const { app } = await createBuyerAgentServer();
   app.listen({ port, host: "0.0.0.0" }, (err, address) => {
     if (err) {
