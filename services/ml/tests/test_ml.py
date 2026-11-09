@@ -1,6 +1,9 @@
 from fastapi.testclient import TestClient
 from sklearn.ensemble import IsolationForest
-from services.ml.main import app, risk_model
+try:
+    from services.ml.main import app, risk_model
+except ImportError:
+    from main import app, risk_model
 
 client = TestClient(app)
 

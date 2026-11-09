@@ -1,7 +1,10 @@
 import re
 from fastapi import FastAPI
 from pydantic import BaseModel, field_validator
-from services.ml.models.isolation_forest import RiskAnomalyModel
+try:
+    from services.ml.models.isolation_forest import RiskAnomalyModel
+except ImportError:
+    from models.isolation_forest import RiskAnomalyModel
 
 app = FastAPI(title="Leash ML Service", version="0.1.0")
 risk_model = RiskAnomalyModel()
