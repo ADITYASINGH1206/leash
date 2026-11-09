@@ -100,6 +100,28 @@ export async function createServer() {
     await closeDb();
   });
 
+  // Root Service Info & Status Endpoint
+  app.get("/", async () => {
+    return {
+      name: "Leash Payment Firewall Gateway",
+      service: "leash-gateway",
+      status: "ok",
+      version: "0.1.0",
+      paypalMode: paypalClient.isMockMode() ? "mock" : "sandbox",
+      storage: storageMode(),
+      consoleUrl: "https://leash-console.onrender.com",
+      documentation: "https://leash-console.onrender.com/developers",
+      endpoints: {
+        health: "/health",
+        ledger: "/api/v1/ledger",
+        verifyLedger: "/api/v1/ledger/verify",
+        paymentRequest: "/api/v1/payment/request",
+        mandates: "/api/v1/mandates",
+        mcp: "/mcp",
+      },
+    };
+  });
+
   // Basic Health Endpoint
   app.get("/health", async () => {
     const rows = await GatewayRepository.getLedgerRows();
