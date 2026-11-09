@@ -11,6 +11,32 @@ import { seedInMemoryMandate, getInMemoryMandate, releaseReservedBudget } from "
 import { closeDb } from "./db/connection.js";
 import { jobRunner } from "./jobs/index.js";
 import type { TransactionRow } from "./db/schema.js";
+import { DEMO_LEDGER_ROWS, DEMO_TRANSACTIONS } from "./db/demo-fixtures.js";
+
+export function seedDemoStateIfEmpty(): void {
+  GatewayRepository.seedDemoState(
+    DEMO_LEDGER_ROWS,
+    DEMO_TRANSACTIONS.map((tx) => ({
+      ...tx,
+      createdAt: new Date(tx.createdAt),
+      updatedAt: new Date(tx.updatedAt),
+    }))
+  );
+  seedInMemoryMandate({
+    id: "mdt_judge_hphyv2le",
+    maxAmount: 150.0,
+    spentAmount: 14.99,
+    intentText: "Buy a USB-C phone case and a cable, under $150 in total, this week",
+    playback: "Authorized spending for phone accessories under $150",
+    constraints: {
+      maxTotal: "150.00",
+      maxPerTxn: "150.00",
+      currency: "USD",
+      categories: ["phone_accessories", "cables", "chargers"],
+      itemTerms: [],
+    },
+  });
+}
 import {
   getMerchantByMerchantId,
   verifyFulfilmentNotice,
@@ -43,6 +69,9 @@ export * from "./db/repository.js";
 export * from "./push.js";
 
 export async function createServer() {
+  if (storageMode() === "memory" && process.env.NODE_ENV !== "test") {
+    seedDemoStateIfEmpty();
+  }
   const app = Fastify({ logger: false });
   const mcpServer = createMcpServer();
 
@@ -980,3 +1009,5 @@ export {
   getInMemoryMandate,
   type InMemoryMandateRecord,
 } from "./db/budget-mutex.js";
+
+export { DEMO_LEDGER_ROWS, DEMO_TRANSACTIONS } from "./db/demo-fixtures.js";
