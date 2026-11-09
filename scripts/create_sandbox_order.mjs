@@ -49,6 +49,18 @@ async function main() {
           ],
         },
       ],
+      payment_source: {
+        paypal: {
+          experience_context: {
+            brand_name: "Leash Payment Firewall",
+            locale: "en-US",
+            landing_page: "LOGIN",
+            user_action: "CONTINUE",
+            return_url: "https://leash-console.onrender.com",
+            cancel_url: "https://leash-console.onrender.com",
+          },
+        },
+      },
     }),
   });
 
@@ -58,7 +70,7 @@ async function main() {
     process.exit(1);
   }
 
-  const approveLink = order.links?.find((l) => l.rel === "approve")?.href;
+  const approveLink = order.links?.find((l) => l.rel === "payer-action" || l.rel === "approve")?.href;
 
   console.log("\n========================================================");
   console.log("🎉 REAL PAYPAL SANDBOX ORDER GENERATED SUCCESSFULLY!");
