@@ -251,7 +251,7 @@ export class PayPalClient {
           })),
         },
       ],
-      ...(req.vaultId && !req.vaultId.startsWith('vault_')
+      ...(req.vaultId && req.vaultId !== 'vault_sandbox_token' && req.vaultId !== 'vault_placeholder' && !req.vaultId.startsWith('vault_mock')
         ? {
             payment_source: {
               paypal: {

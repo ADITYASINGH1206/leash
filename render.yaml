@@ -22,7 +22,7 @@ services:
       #     property: connectionString
       # IANA timezone for the quiet-hours policy rule (the demoing user's local night)
       - key: LEASH_USER_TIMEZONE
-        value: America/Los_Angeles
+        value: Asia/Kolkata
       - key: PAYPAL_ENVIRONMENT
         value: sandbox
       - key: PAYPAL_CLIENT_ID
@@ -30,6 +30,8 @@ services:
       - key: PAYPAL_CLIENT_SECRET
         sync: false
       - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: PAYPAL_VAULT_ID
         sync: false
       # Optional: only used by POST /api/v1/mandates/compile
       - key: GEMINI_API_KEY
