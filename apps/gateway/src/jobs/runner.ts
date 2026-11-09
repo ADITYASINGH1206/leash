@@ -2,6 +2,7 @@ import { PgBoss } from 'pg-boss';
 import { logger } from '@leash/shared';
 import { executeAutoVoidJob } from './autovoid.js';
 import { executeReconciliationJob } from './reconcile.js';
+import { memoryStorageRequested } from '../db/storage-mode.js';
 import {
   JOB_NAMES,
   type AutoVoidOptions,
@@ -40,7 +41,9 @@ export class JobRunner {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    const dbUrl = this.options.databaseUrl || process.env.DATABASE_URL;
+    const dbUrl = memoryStorageRequested()
+      ? undefined
+      : this.options.databaseUrl || process.env.DATABASE_URL;
 
     if (dbUrl) {
       try {

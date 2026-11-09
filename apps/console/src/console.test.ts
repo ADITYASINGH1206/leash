@@ -5,7 +5,8 @@ import {
   computeLedgerHashBrowser,
   GENESIS_HASH,
 } from './lib/crypto';
-import { getFallbackLedgerFixture } from './lib/api';
+import { getFallbackLedgerFixture, gateway, isLeashHealth, GatewayError } from './lib/api';
+import { vi, afterEach } from 'vitest';
 import {
   getOrCreateDeviceKey,
   getDevicePublicKeyBase64,
@@ -216,5 +217,55 @@ describe('Console data layer', () => {
     expect(blocked.cites.length).toBe(1);
     const trust = await answerQuestion('Can I trust this ledger?', rows, decisions);
     expect(trust.text).toContain(`all ${rows.length} hashes`);
+  });
+});
+
+
+describe('Gateway URL diagnostics', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const reply = (status: number, body: unknown) =>
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })));
+
+  it('recognises a Leash health body and nothing else', () => {
+    expect(isLeashHealth({ status: 'ok', service: 'leash-gateway', ledgerHeight: 0, timestamp: 't' })).toBe(true);
+    expect(isLeashHealth({ ok: false, block: 0, cacheLagBlocks: 0 })).toBe(false);
+    expect(isLeashHealth(null)).toBe(false);
+  });
+
+  it('rejects a 200 /health from a different service instead of reporting it live', async () => {
+    reply(200, { ok: false, block: 0, cacheLagBlocks: 0 });
+    const err = await gateway.health().catch((e) => e);
+    expect(err).toBeInstanceOf(GatewayError);
+    expect(err.kind).toBe('not-leash');
+    expect(err.message).toContain('not a Leash gateway');
+    expect(err.message).toContain('NEXT_PUBLIC_GATEWAY_URL');
+  });
+
+  it('explains a bare 404 as a wrong URL', async () => {
+    reply(404, { message: 'Not Found' });
+    const err = await gateway.ledger().catch((e) => e);
+    expect(err.kind).toBe('not-leash');
+    expect(err.status).toBe(404);
+    expect(err.message).toContain('/api/v1/ledger');
+  });
+
+  it('keeps a Leash 404 (which carries an error field) as a normal error', async () => {
+    reply(404, { error: 'Transaction not found' });
+    const err = await gateway.transaction('tx_missing').catch((e) => e);
+    expect(err.kind).toBe('http');
+    expect(err.message).toBe('Transaction not found');
+  });
+
+  it('reports an unreachable gateway with the likely causes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+    const err = await gateway.ledger().catch((e) => e);
+    expect(err.kind).toBe('unreachable');
+    expect(err.message).toContain('CORS_ORIGINS');
+  });
+
+  it('accepts a genuine gateway health body', async () => {
+    reply(200, { status: 'ok', service: 'leash-gateway', ledgerHeight: 3, paypalMode: 'mock', storage: 'memory', timestamp: 't' });
+    const h = await gateway.health();
+    expect(h.storage).toBe('memory');
   });
 });

@@ -5,6 +5,7 @@ import { handleRequestPaymentTool, createMcpServer, paypalClient } from "./mcp/i
 import { PaymentRequestSchema } from "@leash/mandates";
 import { GatewayRepository } from "./db/repository.js";
 import { verifyLedgerChain, LEDGER_EVENT_KINDS } from "@leash/shared";
+import { storageMode } from "./db/storage-mode.js";
 import { seedInMemoryMandate, getInMemoryMandate, releaseReservedBudget } from "./db/budget-mutex.js";
 import { closeDb } from "./db/connection.js";
 import { jobRunner } from "./jobs/index.js";
@@ -88,6 +89,8 @@ export async function createServer() {
       ledgerHeight: rows.length,
       // "mock" means PayPal ids are generated locally (no sandbox credentials)
       paypalMode: paypalClient.isMockMode() ? "mock" : "sandbox",
+      // "memory" means state is not durable (LEASH_STORAGE=memory or no DATABASE_URL)
+      storage: storageMode(),
       timestamp: new Date().toISOString(),
     };
   });

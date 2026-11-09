@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { getDb } from "./connection.js";
 import { mandates } from "./schema.js";
 import { logger } from "@leash/shared";
+import { failClosedOnDbError } from "./storage-mode.js";
 
 export interface BudgetReservationResult {
   success: boolean;
@@ -206,7 +207,7 @@ export async function lockAndReserveBudget(
       logger.error("Database budget reservation transaction failed", {
         error: String(err),
       });
-      if (process.env.NODE_ENV === "production") {
+      if (failClosedOnDbError()) {
         throw new Error(
           "Database transaction failure in production (Fail-Closed)",
         );
@@ -219,7 +220,7 @@ export async function lockAndReserveBudget(
         reason: `Database transaction error: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
-  } else if (process.env.NODE_ENV === "production") {
+  } else if (failClosedOnDbError()) {
     throw new Error(
       "Database connection required in production mode (Fail-Closed)",
     );
@@ -324,7 +325,7 @@ export async function releaseReservedBudget(
       logger.error("Failed to release budget in database", {
         error: String(err),
       });
-      if (process.env.NODE_ENV === "production") {
+      if (failClosedOnDbError()) {
         throw new Error(
           "Database unavailable for budget release in production",
         );

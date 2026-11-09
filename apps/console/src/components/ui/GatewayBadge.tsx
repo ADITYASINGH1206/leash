@@ -5,15 +5,17 @@ import { useGateway } from '../../hooks/useGateway';
 
 /** Live gateway indicator. Says "offline" plainly instead of pretending. */
 export function GatewayBadge({ compact = false }: { compact?: boolean }) {
-  const { state, health } = useGateway();
+  const { state, health, problem } = useGateway();
   const dot = state === 'live' ? 'bg-allow animate-pulse-dot' : state === 'offline' ? 'bg-block' : 'bg-ink-faint';
   const label =
     state === 'live'
       ? compact
         ? 'Gateway live'
-        : `Gateway live, ${health?.ledgerHeight ?? 0} ledger entries${health?.paypalMode === 'mock' ? ', PayPal mock mode' : ''}`
+        : `Gateway live, ${health?.ledgerHeight ?? 0} ledger entries${health?.paypalMode === 'mock' ? ', PayPal mock mode' : ''}${health?.storage === 'memory' ? ', in-memory demo state' : ''}`
       : state === 'offline'
-        ? 'Gateway offline'
+        ? problem?.kind === 'not-leash'
+          ? 'Wrong gateway URL'
+          : 'Gateway offline'
         : 'Checking gateway';
   return (
     <span
