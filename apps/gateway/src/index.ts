@@ -48,18 +48,37 @@ export async function createServer() {
   // CORS: the console and approvals PWA run on a different origin than the
   // gateway, so browsers need explicit permission to read responses.
   // CORS_ORIGINS is a comma-separated allowlist ("*" allows any origin).
-  const allowedOrigins = (
+  // Automatically permits any *.onrender.com origin and localhost by default.
+  const configuredOrigins = (
     process.env.CORS_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000"
   )
     .split(",")
     .map((o) => o.trim().replace(/\/$/, ""))
     .filter(Boolean);
+
+  const isAllowedOrigin = (origin: string): boolean => {
+    if (configuredOrigins.includes("*") || configuredOrigins.includes(origin)) {
+      return true;
+    }
+    try {
+      const url = new URL(origin);
+      if (
+        url.hostname.endsWith(".onrender.com") ||
+        url.hostname === "localhost" ||
+        url.hostname === "127.0.0.1"
+      ) {
+        return true;
+      }
+    } catch {
+      // not a valid URL
+    }
+    return false;
+  };
+
   app.addHook("onRequest", async (req, reply) => {
     const origin = req.headers.origin;
     if (!origin) return;
-    const allowed =
-      allowedOrigins.includes("*") || allowedOrigins.includes(origin);
-    if (!allowed) return;
+    if (!isAllowedOrigin(origin)) return;
     reply.header("Access-Control-Allow-Origin", origin);
     reply.header("Vary", "Origin");
     reply.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
