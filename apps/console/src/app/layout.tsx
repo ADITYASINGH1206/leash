@@ -3,12 +3,22 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Leash: a payment firewall for AI agents',
+    default: '🛡️ Leash: a payment firewall for AI agents',
     template: '%s | Leash',
   },
   description:
     'Leash sits between AI agents and PayPal. Every payment must trace back to a mandate you signed, pass five checks, and is captured only when the merchant ships.',
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/icons/icon.svg', type: 'image/svg+xml' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/favicon.ico' },
+    ],
+    apple: [
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',

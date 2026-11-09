@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { usePrefersReducedMotion } from '../../hooks/useReducedMotion';
 import { GatewayBadge } from '../ui/GatewayBadge';
+import { LogoMark } from '../brand/Logo';
 
 const FirewallScene = dynamic(() => import('../three/FirewallScene'), {
   ssr: false,
@@ -43,7 +44,14 @@ export function Hero() {
 
       <div className="mx-auto grid max-w-[84rem] px-5 pb-16 pt-14 sm:px-8 md:min-h-[min(46rem,88vh)] md:grid-cols-12 md:pb-24 md:pt-24">
         <div className="md:col-span-7 lg:col-span-6">
-          <GatewayBadge />
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="/" className="inline-flex items-center gap-2 text-ink transition-opacity hover:opacity-85" aria-label="Leash">
+              <LogoMark className="h-6 w-6 text-intaglio" />
+              <span className="font-display text-step-1 font-semibold tracking-tight">Leash</span>
+            </Link>
+            <span className="text-rule-strong" aria-hidden="true">/</span>
+            <GatewayBadge />
+          </div>
           <h1 className="mt-8 font-display text-step-6 tracking-[-0.015em] text-ink lg:text-step-7">
             {LINES.map((line, i) => (
               <span key={line} className="block overflow-hidden pb-1">

@@ -17,15 +17,31 @@ function normaliseBaseUrl(raw: string | undefined): string {
 
 export const GATEWAY_BASE_URL = normaliseBaseUrl(process.env.NEXT_PUBLIC_GATEWAY_URL);
 
+/** True when the console is pointed at a gateway on this machine. */
+export const IS_LOCAL_GATEWAY = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/.test(GATEWAY_BASE_URL);
+
+/**
+ * Why a gateway call failed.
+ * - unreachable: the request never got an answer (down, asleep, wrong host, or blocked by CORS)
+ * - timeout:     no answer in time
+ * - not-leash:   something answered, but it is not a Leash gateway (wrong URL)
+ * - http:        a Leash gateway answered with an error
+ */
+export type GatewayErrorKind = 'unreachable' | 'timeout' | 'not-leash' | 'http';
+
 export class GatewayError extends Error {
   constructor(
     message: string,
     public readonly status?: number,
+    public readonly kind: GatewayErrorKind = 'http',
   ) {
     super(message);
     this.name = 'GatewayError';
   }
 }
+
+const WRONG_URL_HINT =
+  'Set NEXT_PUBLIC_GATEWAY_URL to the public URL of your own gateway service and rebuild the console (see docs/DEPLOYMENT.md).';
 
 async function call<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
   const controller = new AbortController();
@@ -43,16 +59,27 @@ async function call<T>(path: string, init?: RequestInit & { timeoutMs?: number }
       signal: controller.signal,
     });
   } catch (err) {
-    throw new GatewayError(
-      controller.signal.aborted
-        ? `The gateway at ${GATEWAY_BASE_URL} did not answer in time.`
-        : `Could not reach the gateway at ${GATEWAY_BASE_URL}.`,
-    );
+    throw controller.signal.aborted
+      ? new GatewayError(`The gateway at ${GATEWAY_BASE_URL} did not answer in time.`, undefined, 'timeout')
+      : new GatewayError(
+          `Could not reach the gateway at ${GATEWAY_BASE_URL}. It may be down or asleep, or it may not list this site in CORS_ORIGINS.`,
+          undefined,
+          'unreachable',
+        );
   } finally {
     clearTimeout(timer);
   }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string; details?: string };
   if (!res.ok) {
+    // A Leash gateway always explains an error in an `error` field. A bare 404 with no
+    // such field means the host is answering but is not serving the Leash API.
+    if (res.status === 404 && !data.error) {
+      throw new GatewayError(
+        `Gateway returned 404 for ${path}. ${GATEWAY_BASE_URL} is not serving the Leash API. ${WRONG_URL_HINT}`,
+        404,
+        'not-leash',
+      );
+    }
     throw new GatewayError(data.error || data.details || `Gateway returned ${res.status}`, res.status);
   }
   return data;
@@ -156,14 +183,32 @@ export interface MandateInput {
 
 export interface GatewayHealth {
   paypalMode?: "mock" | "sandbox";
+  /** "memory" means state is not durable (demo mode) */
+  storage?: "memory" | "postgres";
   status: string;
   service: string;
   ledgerHeight: number;
   timestamp: string;
 }
 
+/** True when a /health body identifies a Leash gateway. */
+export function isLeashHealth(body: unknown): body is GatewayHealth {
+  return typeof body === 'object' && body !== null && (body as { service?: unknown }).service === 'leash-gateway';
+}
+
 export const gateway = {
-  health: () => call<GatewayHealth>('/health', { timeoutMs: 2500 }),
+  health: async () => {
+    const h = await call<GatewayHealth>('/health', { timeoutMs: 2500 });
+    // Any service can answer GET /health with JSON; only a Leash gateway says who it is.
+    if (!isLeashHealth(h)) {
+      throw new GatewayError(
+        `${GATEWAY_BASE_URL} answered /health, but it is not a Leash gateway (it returned ${JSON.stringify(h).slice(0, 80)}). ${WRONG_URL_HINT}`,
+        undefined,
+        'not-leash',
+      );
+    }
+    return h;
+  },
   ledger: async () => (await call<{ total: number; chain: LedgerEventRow[] }>('/api/v1/ledger')).chain,
   verifyLedger: () =>
     call<{ valid: boolean; totalEvents: number; brokenSeq?: number; reason?: string }>(

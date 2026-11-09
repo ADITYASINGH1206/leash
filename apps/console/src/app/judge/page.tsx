@@ -7,13 +7,13 @@ import { SiteHeader } from '../../components/home/SiteHeader';
 import { Button } from '../../components/ui/Button';
 import { Stamp } from '../../components/ui/Stamp';
 import { useGateway } from '../../hooks/useGateway';
-import { GATEWAY_BASE_URL } from '../../lib/api';
+import { GATEWAY_BASE_URL, IS_LOCAL_GATEWAY } from '../../lib/api';
 import { JUDGE_STEPS, runJudgeWalkthrough, type JudgeStep } from '../../lib/judge';
 
 const fresh = (): JudgeStep[] => JUDGE_STEPS.map((s) => ({ ...s, state: 'pending' }));
 
 export default function JudgePage() {
-  const { state: gw, health } = useGateway(5000);
+  const { state: gw, health, problem } = useGateway(5000);
   const [steps, setSteps] = useState<JudgeStep[]>(fresh);
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState<null | boolean>(null);
@@ -47,20 +47,30 @@ export default function JudgePage() {
           </Button>
           <span className="text-step--1 text-ink-soft" role="status">
             {gw === 'live'
-              ? `Gateway live at ${GATEWAY_BASE_URL}${health?.paypalMode === 'mock' ? '. PayPal is in mock mode, so ids are generated locally.' : ''}`
+              ? `Gateway live at ${GATEWAY_BASE_URL}${health?.paypalMode === 'mock' ? '. PayPal is in mock mode, so ids are generated locally.' : ''}${health?.storage === 'memory' ? ' State is held in memory and resets when the gateway restarts.' : ''}`
               : gw === 'offline'
-                ? 'The gateway is offline.'
+                ? problem?.kind === 'not-leash'
+                ? 'A different service answered at the gateway URL.'
+                : 'The gateway is offline.'
                 : 'Checking the gateway…'}
           </span>
         </div>
 
         {gw === 'offline' && (
           <div className="mt-6 rounded-sheet border border-hold/40 bg-hold-wash/60 p-5 text-step--1 text-ink">
-            <p className="font-medium">Start the gateway to run the demo.</p>
+            <p className="font-medium">
+              {problem?.kind === 'not-leash' ? 'The gateway URL points at the wrong service.' : 'Start the gateway to run the demo.'}
+            </p>
+            {problem?.message && <p className="mt-1 text-ink-soft">{problem.message}</p>}
             <p className="mt-1 text-ink-soft">
-              Locally: <code className="font-mono">pnpm --filter @leash/gateway dev</code>. Hosted: set{' '}
-              <code className="font-mono">NEXT_PUBLIC_GATEWAY_URL</code> to the gateway&apos;s public URL and add this site to its{' '}
-              <code className="font-mono">CORS_ORIGINS</code>.
+              {IS_LOCAL_GATEWAY ? (
+                <>
+                  Locally: <code className="font-mono">pnpm --filter @leash/gateway dev</code>.{' '}
+                </>
+              ) : null}
+              Hosted: set <code className="font-mono">NEXT_PUBLIC_GATEWAY_URL</code> to the gateway&apos;s public URL when
+              the console is built, and add this site to the gateway&apos;s <code className="font-mono">CORS_ORIGINS</code>.
+              See docs/DEPLOYMENT.md.
             </p>
           </div>
         )}

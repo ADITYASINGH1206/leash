@@ -9,6 +9,7 @@ import {
 import { LedgerService, type LedgerRow, computeLedgerHash, GENESIS_HASH } from '@leash/shared';
 import { eq, desc, and, lte } from 'drizzle-orm';
 import { logger } from '@leash/shared';
+import { failClosedOnDbError } from "./storage-mode.js";
 
 // Global shared ledger service instance (tracks ledger state in test/dev mode)
 const inMemoryLedgerService = new LedgerService();
@@ -37,11 +38,11 @@ export class GatewayRepository {
         }));
       } catch (err) {
         logger.error('Failed to read ledger from database', { error: String(err) });
-        if (process.env.NODE_ENV === 'production') {
+        if (failClosedOnDbError()) {
           throw new Error('Database unavailable for ledger query in production (Fail-Closed)');
         }
       }
-    } else if (process.env.NODE_ENV === 'production') {
+    } else if (failClosedOnDbError()) {
       throw new Error('Database unavailable for ledger query in production (Fail-Closed)');
     }
 
@@ -89,11 +90,11 @@ export class GatewayRepository {
         }
       } catch (err) {
         logger.error('Database ledger insert failed', { error: String(err) });
-        if (process.env.NODE_ENV === 'production') {
+        if (failClosedOnDbError()) {
           throw new Error('Database unavailable for ledger append in production (Fail-Closed)');
         }
       }
-    } else if (process.env.NODE_ENV === 'production') {
+    } else if (failClosedOnDbError()) {
       throw new Error('Database unavailable for ledger append in production (Fail-Closed)');
     }
 
@@ -149,11 +150,11 @@ export class GatewayRepository {
         return;
       } catch (err) {
         logger.error('Failed to save transaction to database', { error: String(err) });
-        if (process.env.NODE_ENV === 'production') {
+        if (failClosedOnDbError()) {
           throw new Error('Database unavailable for transaction saving in production (Fail-Closed)');
         }
       }
-    } else if (process.env.NODE_ENV === 'production') {
+    } else if (failClosedOnDbError()) {
       throw new Error('Database unavailable for transaction saving in production (Fail-Closed)');
     }
 
@@ -190,11 +191,11 @@ export class GatewayRepository {
         }
       } catch (err) {
         logger.error('Database getTransaction failed', { error: String(err) });
-        if (process.env.NODE_ENV === 'production') {
+        if (failClosedOnDbError()) {
           throw new Error('Database unavailable for transaction retrieval in production');
         }
       }
-    } else if (process.env.NODE_ENV === 'production') {
+    } else if (failClosedOnDbError()) {
       throw new Error('Database unavailable for transaction retrieval in production');
     }
 
@@ -215,11 +216,11 @@ export class GatewayRepository {
         }
       } catch (err) {
         logger.error('Database getMandate failed', { error: String(err) });
-        if (process.env.NODE_ENV === 'production') {
+        if (failClosedOnDbError()) {
           throw new Error('Database unavailable for mandate retrieval in production');
         }
       }
-    } else if (process.env.NODE_ENV === 'production') {
+    } else if (failClosedOnDbError()) {
       throw new Error('Database unavailable for mandate retrieval in production');
     }
 
@@ -250,11 +251,11 @@ export class GatewayRepository {
         return await query.orderBy(desc(transactionsTable.createdAt));
       } catch (err) {
         logger.error('Database listTransactions failed', { error: String(err) });
-        if (process.env.NODE_ENV === 'production') {
+        if (failClosedOnDbError()) {
           throw new Error('Database unavailable for listTransactions in production');
         }
       }
-    } else if (process.env.NODE_ENV === 'production') {
+    } else if (failClosedOnDbError()) {
       throw new Error('Database unavailable for listTransactions in production');
     }
 

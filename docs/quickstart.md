@@ -48,7 +48,6 @@ PAYPAL_ENVIRONMENT=sandbox
 PAYPAL_CLIENT_ID=your_paypal_sandbox_client_id
 PAYPAL_CLIENT_SECRET=your_paypal_sandbox_client_secret
 PAYPAL_WEBHOOK_ID=your_paypal_webhook_id
-ANTHROPIC_API_KEY=your_anthropic_api_key   # Optional: defaults to deterministic mock judge
 ```
 
 ---
@@ -88,9 +87,9 @@ pnpm dev
 ```
 Once started, the following services will be available:
 - **Leash Web Console:** `http://localhost:3000` (AG Grid Ledger, Mandate Studio, Live Feed)
-- **Buyer Shopping Agent:** `http://localhost:3001` (Autonomous agent chat UI & Attack Mode)
+- **Buyer Shopping Agent:** `http://localhost:4001` (autonomous agent chat UI and Attack Mode)
 - **Leash Gateway API & MCP:** `http://localhost:4000` (`/health`, `/api/v1/ledger`, `/mcp`)
-- **Layer 4 ML Service:** `http://localhost:8000` (`/api/v1/risk/score`)
+- **Layer 4 ML Service:** `http://localhost:8000` (`/risk/score`, `/injection/detect`)
 
 ---
 
@@ -106,7 +105,7 @@ Once started, the following services will be available:
 6. Click **"Export CSV"** to export the audited rows.
 
 ### 2. Live Prompt Injection Defense Test
-1. Open the **Buyer Agent** UI at `http://localhost:3001`.
+1. Open the **Buyer Agent** UI at `http://localhost:4001`.
 2. Toggle the **"Attack Mode Simulation"** switch to **ON**.
 3. Send a message: *"Search for travel accessories"*.
 4. Observe the agent ingest the hidden `display: none` DOM payload.
@@ -116,7 +115,7 @@ Once started, the following services will be available:
    - Funds Moved: **$0.00**
 
 ### 3. Natural Language Ledger Copilot
-1. In the Console, navigate to the **Copilot** tab.
+1. In the Console, open **Ask the ledger** (`/console/ask`).
 2. Ask any audit query:
    - *"What is my remaining budget for phone cases?"*
    - *"Show me all blocked transactions and their reasons."*
