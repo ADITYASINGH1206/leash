@@ -21,6 +21,8 @@ services:
         sync: false
       - key: PAYPAL_WEBHOOK_ID
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: ML_SERVICE_URL
