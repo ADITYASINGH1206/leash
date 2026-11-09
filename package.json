@@ -8,6 +8,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "db:migrate": "pnpm --filter @leash/gateway db:migrate",
+    "order": "node --env-file=.env scripts/create_sandbox_order.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "spike": "tsx scripts/paypal_spike.ts",
