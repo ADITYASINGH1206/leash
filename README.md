@@ -4,6 +4,11 @@ Agents can now spend money. Leash makes sure they spend it only the way you mean
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PayPal AI Hackathon 2026](https://img.shields.io/badge/PayPal-AI%20Hackathon%202026-003087)](https://paypalaihackathon.devpost.com/)
+[![Watch Demo Video](https://img.shields.io/badge/Demo%20Video-YouTube-red?logo=youtube)](https://youtu.be/b1fWPTeN0k4)
+[![Hosted Live Demo](https://img.shields.io/badge/Live%20Demo-onrender.com-blue?logo=render)](https://leash-console.onrender.com)
+
+> 📺 **Watch the 2-Minute Demo Video:** [**https://youtu.be/b1fWPTeN0k4**](https://youtu.be/b1fWPTeN0k4)  
+> 🌐 **Live Hosted Deployment:** [**https://leash-console.onrender.com**](https://leash-console.onrender.com)
 
 Leash sits between an AI shopping agent and PayPal. Every payment the agent asks for must point to a mandate the user signed, pass five independent checks, and is only authorized (held), never charged, until the merchant proves the goods shipped. If any check errors or runs past its time limit, the payment is held for the user. Nothing fails open.
 
