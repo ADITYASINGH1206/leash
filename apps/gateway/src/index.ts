@@ -1,3 +1,4 @@
+import "./env.js";
 import Fastify from "fastify";
 import { randomUUID } from "node:crypto";
 import { logger } from "@leash/shared";

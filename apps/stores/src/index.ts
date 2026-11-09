@@ -8,7 +8,7 @@ export * from "./server.js";
 import { fileURLToPath } from "node:url";
 import { createStoresServer } from "./server.js";
 
-const PORT = Number(process.env.PORT) || Number(process.env.STORES_PORT) || 3003;
+const PORT = Number(process.env.STORES_PORT) || (process.env.PORT && process.env.PORT !== "4000" ? Number(process.env.PORT) : 3003);
 
 const isDirectRun =
   Boolean(process.argv[1]) &&

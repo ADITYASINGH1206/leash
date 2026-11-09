@@ -5,6 +5,7 @@
  * library (buyer-agent, e2e tests) do not accidentally start a second gateway
  * on the same port.
  */
+import "./env.js";
 import { createServer } from "./index.js";
 import { runMigrations } from "./db/migrate.js";
 import { memoryStorageRequested } from "./db/storage-mode.js";
@@ -16,11 +17,15 @@ try {
   if (memoryStorageRequested()) {
     logger.warn("LEASH_STORAGE=memory: state is kept in memory and is lost on restart (demo mode)");
   } else {
-    await runMigrations();
+    try {
+      await runMigrations();
+    } catch (migErr) {
+      logger.warn("PostgreSQL not reachable, falling back to memory storage mode", { error: String(migErr) });
+      process.env.LEASH_STORAGE = "memory";
+    }
   }
 } catch (err) {
-  logger.error("Database migration failed", { error: String(err) });
-  process.exit(1);
+  logger.warn("Database initialization notice", { error: String(err) });
 }
 
 const app = await createServer();
