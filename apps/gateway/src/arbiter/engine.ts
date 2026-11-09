@@ -765,7 +765,7 @@ export class DecisionArbiter {
  * LEASH_USER_TIMEZONE is an IANA zone (default America/Los_Angeles).
  */
 export function hourInUserTimezone(now: Date): number {
-  const timeZone = process.env.LEASH_USER_TIMEZONE || "America/Los_Angeles";
+  const timeZone = process.env.LEASH_USER_TIMEZONE || "Asia/Kolkata";
   try {
     const hour = new Intl.DateTimeFormat("en-US", {
       timeZone,
