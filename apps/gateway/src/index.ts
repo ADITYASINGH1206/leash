@@ -94,6 +94,7 @@ export async function createServer() {
       const url = new URL(origin);
       if (
         url.hostname.endsWith(".onrender.com") ||
+        url.hostname.endsWith(".vercel.app") ||
         url.hostname === "localhost" ||
         url.hostname === "127.0.0.1"
       ) {
@@ -105,22 +106,40 @@ export async function createServer() {
     return false;
   };
 
+  const ALLOWED_CORS_HEADERS =
+    "Content-Type, Accept, Authorization, X-Requested-With, Origin, Sentry-Trace, Baggage, Cache-Control, Pragma";
+
   app.addHook("onRequest", async (req, reply) => {
     const origin = req.headers.origin;
     if (!origin) return;
     if (!isAllowedOrigin(origin)) return;
     reply.header("Access-Control-Allow-Origin", origin);
     reply.header("Vary", "Origin");
-    reply.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    reply.header("Access-Control-Allow-Headers", "Content-Type, Accept");
+    reply.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE, PATCH");
+    const requestedHeaders = req.headers["access-control-request-headers"];
+    reply.header(
+      "Access-Control-Allow-Headers",
+      requestedHeaders || ALLOWED_CORS_HEADERS
+    );
     reply.header("Access-Control-Max-Age", "600");
     if (req.method === "OPTIONS") {
-      reply.status(204).send();
+      return reply.status(204).send();
     }
   });
-  app.options("/*", async (_req, reply) => {
-    reply.status(204);
-    return "";
+  app.options("/*", async (req, reply) => {
+    const origin = req.headers.origin;
+    if (origin && isAllowedOrigin(origin)) {
+      reply.header("Access-Control-Allow-Origin", origin);
+      reply.header("Vary", "Origin");
+      reply.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE, PATCH");
+      const requestedHeaders = req.headers["access-control-request-headers"];
+      reply.header(
+        "Access-Control-Allow-Headers",
+        requestedHeaders || ALLOWED_CORS_HEADERS
+      );
+      reply.header("Access-Control-Max-Age", "600");
+    }
+    return reply.status(204).send();
   });
 
   app.addHook("onClose", async () => {

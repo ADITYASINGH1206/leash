@@ -13,6 +13,7 @@ export function useGateway(intervalMs = 8000) {
 
   useEffect(() => {
     let alive = true;
+    let fails = 0;
     const tick = async () => {
       try {
         const h = await gateway.health();
@@ -20,13 +21,21 @@ export function useGateway(intervalMs = 8000) {
         setHealth(h);
         setProblem(null);
         setState('live');
+        fails = 0;
       } catch (err) {
         if (!alive) return;
+        fails++;
         setProblem({
           kind: err instanceof GatewayError ? err.kind : 'unreachable',
           message: err instanceof Error ? err.message : String(err),
         });
-        setState('offline');
+        // Render free services take 15-25s to wake from sleep (cold start).
+        // Give 1 grace tick for timeout/unreachable before declaring offline.
+        if (fails > 1 || (err instanceof GatewayError && err.kind === 'not-leash')) {
+          setState('offline');
+        } else {
+          setState('checking');
+        }
       }
     };
     tick();

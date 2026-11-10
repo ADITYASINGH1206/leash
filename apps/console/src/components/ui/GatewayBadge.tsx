@@ -6,7 +6,7 @@ import { useGateway } from '../../hooks/useGateway';
 /** Live gateway indicator. Says "offline" plainly instead of pretending. */
 export function GatewayBadge({ compact = false }: { compact?: boolean }) {
   const { state, health, problem } = useGateway();
-  const dot = state === 'live' ? 'bg-allow animate-pulse-dot' : state === 'offline' ? 'bg-block' : 'bg-ink-faint';
+  const dot = state === 'live' ? 'bg-allow animate-pulse-dot' : state === 'offline' ? 'bg-block' : 'bg-hold animate-pulse-dot';
   const label =
     state === 'live'
       ? compact
@@ -16,7 +16,7 @@ export function GatewayBadge({ compact = false }: { compact?: boolean }) {
         ? problem?.kind === 'not-leash'
           ? 'Wrong gateway URL'
           : 'Gateway offline'
-        : 'Checking gateway';
+        : 'Connecting to gateway…';
   return (
     <span
       className={`inline-flex items-center gap-2 rounded-full border border-rule bg-paper-raised/80 px-3 py-1 text-[0.75rem] text-ink-soft ${compact ? 'hidden sm:inline-flex' : ''}`}

@@ -45,7 +45,7 @@ const WRONG_URL_HINT =
 
 async function call<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), init?.timeoutMs ?? 6000);
+  const timer = setTimeout(() => controller.abort(), init?.timeoutMs ?? 15000);
   let res: Response;
   try {
     res = await fetch(`${GATEWAY_BASE_URL}${path}`, {
@@ -62,7 +62,7 @@ async function call<T>(path: string, init?: RequestInit & { timeoutMs?: number }
     throw controller.signal.aborted
       ? new GatewayError(`The gateway at ${GATEWAY_BASE_URL} did not answer in time.`, undefined, 'timeout')
       : new GatewayError(
-          `Could not reach the gateway at ${GATEWAY_BASE_URL}. It may be down or asleep, or it may not list this site in CORS_ORIGINS.`,
+          `Could not reach the gateway at ${GATEWAY_BASE_URL}. It may be down, asleep (Render cold start), or blocked by browser privacy shields / CORS_ORIGINS.`,
           undefined,
           'unreachable',
         );
@@ -198,7 +198,7 @@ export function isLeashHealth(body: unknown): body is GatewayHealth {
 
 export const gateway = {
   health: async () => {
-    const h = await call<GatewayHealth>('/health', { timeoutMs: 2500 });
+    const h = await call<GatewayHealth>('/health', { timeoutMs: 12000 });
     // Any service can answer GET /health with JSON; only a Leash gateway says who it is.
     if (!isLeashHealth(h)) {
       throw new GatewayError(
