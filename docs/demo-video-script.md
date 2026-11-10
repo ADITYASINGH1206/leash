@@ -1,6 +1,7 @@
-# Leash: 2m50s Hackathon Demo Video Script & Storyboard
+# Leash: Hackathon Demo Video Script & Storyboard
 
-> **Target Duration:** 2 minutes 50 seconds (170 seconds)  
+> **Video URL:** [https://youtu.be/1-c-Xt1t9C8](https://youtu.be/1-c-Xt1t9C8)  
+> **Duration:** 2 minutes 58 seconds (178 seconds)  
 > **Format:** Split screen (Terminal / Mobile Device / Web Console) with live voiceover  
 > **Key Visuals:** Phone vibration notification, prompt injection blocked in real-time, AG Grid interactive SHA-256 verification banner, Render production dashboard.
 
