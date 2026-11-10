@@ -2,7 +2,7 @@
 
 > **PayPal AI Hackathon 2026 Submission**  
 > **Prize Categories:** 1st Place Overall ($12,000), Best Use of PayPal + AI ($5,000), Best Use of Agentic Commerce ($5,000), Best Use of AG Grid (1st Place $5,000), Best Use of Render (1st Place $1,000 credits).  
-> **Demo Video (YouTube):** [https://youtu.be/b1fWPTeN0k4](https://youtu.be/b1fWPTeN0k4)  
+> **Demo Video (YouTube):** [https://youtu.be/1-c-Xt1t9C8](https://youtu.be/1-c-Xt1t9C8) (Duration: 2:58)  
 > **Live Hosted Demo:** [https://leash-console.onrender.com](https://leash-console.onrender.com)  
 > **GitHub Repository:** [https://github.com/ADITYASINGH1206/leash](https://github.com/ADITYASINGH1206/leash)
 
