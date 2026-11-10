@@ -50,16 +50,16 @@ export default function JudgePage() {
               ? `Gateway live at ${GATEWAY_BASE_URL}${health?.paypalMode === 'mock' ? '. PayPal is in mock mode, so ids are generated locally.' : ''}${health?.storage === 'memory' ? ' State is held in memory and resets when the gateway restarts.' : ''}`
               : gw === 'offline'
                 ? problem?.kind === 'not-leash'
-                ? 'A different service answered at the gateway URL.'
-                : 'The gateway is offline.'
-                : 'Checking the gateway…'}
+                  ? 'A different service answered at the gateway URL.'
+                  : 'The gateway is offline or waking up from sleep.'
+                : 'Connecting to gateway…'}
           </span>
         </div>
 
         {gw === 'offline' && (
           <div className="mt-6 rounded-sheet border border-hold/40 bg-hold-wash/60 p-5 text-step--1 text-ink">
             <p className="font-medium">
-              {problem?.kind === 'not-leash' ? 'The gateway URL points at the wrong service.' : 'Start the gateway to run the demo.'}
+              {problem?.kind === 'not-leash' ? 'The gateway URL points at the wrong service.' : 'Start or wake up the gateway to run the demo.'}
             </p>
             {problem?.message && <p className="mt-1 text-ink-soft">{problem.message}</p>}
             <p className="mt-1 text-ink-soft">
@@ -68,9 +68,7 @@ export default function JudgePage() {
                   Locally: <code className="font-mono">pnpm --filter @leash/gateway dev</code>.{' '}
                 </>
               ) : null}
-              Hosted: set <code className="font-mono">NEXT_PUBLIC_GATEWAY_URL</code> to the gateway&apos;s public URL when
-              the console is built, and add this site to the gateway&apos;s <code className="font-mono">CORS_ORIGINS</code>.
-              See docs/DEPLOYMENT.md.
+              Hosted: if Render put the free-tier service to sleep, allow 15–25 seconds for it to wake up. Also make sure browser shields or ad blockers are disabled for onrender.com so cross-subdomain API calls are allowed.
             </p>
           </div>
         )}
